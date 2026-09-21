@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Global Chat</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        font-family: Arial, sans-serif;
+      }
+
+      .container {
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #000000;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 1.5rem;
+        padding: 0.8rem 1.5rem;
+        font-size: 1rem;
+        color: #000000;
+        background: #ffffff;
+        border: 1px solid #000000;
+        border-radius: 6px;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Global Chat</h1>
+      <a href="javascript:(()=>{const T="global-bookmarklet-chat-7f3c9a2e";let u=localStorage.gb_user||prompt("Enter your username:");if(!u)return;localStorage.gb_user=u;document.getElementById("gbc")?.remove();let d=document.createElement("div");d.id="gbc";d.innerHTML=`<div style="position:fixed;right:20px;bottom:20px;width:320px;height:420px;background:#111;color:#fff;z-index:2147483647;border-radius:14px;box-shadow:0 8px 30px #000;display:flex;flex-direction:column;font:14px Arial"><div style="padding:12px;background:#222;border-radius:14px 14px 0 0;font-weight:bold">🌐 Global Chat <span style="float:right;cursor:pointer" id="gbx">×</span></div><div id="gbm" style="flex:1;overflow:auto;padding:10px"></div><form id="gbf" style="display:flex;padding:8px;background:#222"><input id="gbi" autocomplete="off" placeholder="Message..." style="flex:1;padding:9px;border:0;border-radius:8px;background:#333;color:#fff"><button style="margin-left:6px;border:0;border-radius:8px;padding:0 12px">➤</button></form></div>%60;document.body.appendChild(d);let m=document.getElementById("gbm"),i=document.getElementById("gbi"),f=document.getElementById("gbf");document.getElementById("gbx").onclick=()=>d.remove();let add=x=>{let e=document.createElement("div");e.style="margin:6px 0;padding:7px 9px;background:#222;border-radius:8px;word-wrap:break-word";e.innerHTML="<b>"+String(x.user).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))+"</b>: "+String(x.text).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));m.appendChild(e);m.scrollTop=m.scrollHeight};let s=new EventSource("https://ntfy.sh/"+T+"/sse");s.onmessage=e=>{try{let x=JSON.parse(e.data);if(x.event==="message"&&x.message)add(JSON.parse(x.message))}catch(_){}};f.onsubmit=e=>{e.preventDefault();let t=i.value.trim();if(!t)return;fetch("https://ntfy.sh/"+T,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:u,text:t})});i.value=""}})()" target="_blank" rel="noopener noreferrer">Drag into Bookmark bar</a>
+    </div>
+  </body>
+</html>
