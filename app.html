@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Global Chat App</title>
+  <style>
+    :root {
+      --bg-color: #f2f2f7;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --primary: #007aff;
+      --bubble-me: #dcf8c6;
+      --bubble-other: #ffffff;
+      --text: #000000;
+      --text-sub: #8e8e93;
+      --border: rgba(60, 60, 67, 0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg-color); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Header */
+    header { height: 50px; background: var(--card-bg); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; position: relative; z-index: 10; }
+    .header-left { display: flex; align-items: center; gap: 8px; }
+    .active-badge { background: #e5e5ea; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+    .active-dot { width: 6px; height: 6px; background: #34c759; border-radius: 50%; }
+
+    /* Dropdown Menu */
+    .menu-btn { background: none; border: none; font-size: 20px; color: var(--primary); cursor: pointer; padding: 4px 8px; }
+    .dropdown { position: absolute; top: 52px; right: 12px; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); width: 170px; display: none; flex-direction: column; overflow: hidden; border: 1px solid var(--border); z-index: 100; }
+    .dropdown button { padding: 12px 16px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text); }
+    .dropdown button:last-child { border-bottom: none; }
+    .dropdown button:hover { background: #f2f2f7; }
+
+    /* Chat Views & Tabs */
+    .chat-tabs { display: flex; background: #e5e5ea; padding: 2px; border-bottom: 1px solid var(--border); }
+    .tab-btn { flex: 1; padding: 6px; border: none; background: none; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 6px; cursor: pointer; }
+    .tab-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    /* Message Area */
+    .messages-container { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #e5ddd5; background-image: radial-gradient(rgba(0,0,0,0.03) 1px, transparent 0); background-size: 12px 12px; }
+    
+    /* WhatsApp Speech Bubbles */
+    .bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; position: relative; font-size: 13px; line-height: 1.4; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1); display: flex; gap: 8px; }
+    .bubble.me { align-self: flex-end; background: var(--bubble-me); border-bottom-right-radius: 2px; }
+    .bubble.other { align-self: flex-start; background: var(--bubble-other); border-bottom-left-radius: 2px; }
+    .bubble-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+    .bubble-content { flex: 1; }
+    .bubble-user { font-size: 10px; font-weight: 700; color: #555; margin-bottom: 2px; cursor: pointer; }
+    .bubble-time { font-size: 9px; color: var(--text-sub); text-align: right; margin-top: 4px; }
+
+    /* Typing Indicator */
+    .typing-bar { height: 18px; padding: 0 12px; font-size: 10px; color: var(--text-sub); font-style: italic; background: transparent; }
+
+    /* Soundboard Drawer (Admin Only) */
+    .soundboard { background: #fff; border-top: 1px solid var(--border); padding: 8px 12px; display: none; gap: 6px; overflow-x: auto; }
+    .soundboard button { background: #f2f2f7; border: 1px solid var(--border); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+    /* Composer */
+    .composer { padding: 8px 12px; background: var(--card-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; position: relative; }
+    .emoji-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    .composer input { flex: 1; border: 1px solid var(--border); border-radius: 18px; padding: 8px 14px; font-size: 13px; outline: none; background: #fff; }
+    .composer button.send-btn { background: var(--primary); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .char-count { font-size: 9px; color: var(--text-sub); position: absolute; right: 52px; bottom: -2px; }
+
+    /* Popovers & Modals */
+    .emoji-picker { position: absolute; bottom: 56px; left: 12px; background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 8px; display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 50; }
+    .emoji-picker span { font-size: 20px; cursor: pointer; text-align: center; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal { background: #fff; width: 88%; max-width: 320px; border-radius: 16px; padding: 20px; box-shadow: 0 12px 32px rgba(0,0,0,0.2); text-align: center; }
+    .modal h3 { font-size: 16px; margin-bottom: 12px; }
+    .modal input { width: 100%; border: 1px solid var(--border); padding: 10px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; outline: none; }
+    .modal button { width: 100%; padding: 10px; border: none; background: var(--primary); color: #fff; font-weight: 600; border-radius: 10px; cursor: pointer; margin-top: 6px; }
+    .modal button.secondary { background: #e5e5ea; color: var(--text); }
+    .hidden { display: none !important; }
+
+    /* Jumpscare Overlay */
+    .jumpscare-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .jumpscare-overlay img { width: 100%; height: 100%; object-fit: cover; }
+  </style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header>
+    <div class="header-left">
+      <span style="font-weight: 700; font-size: 15px;">Global Chat</span>
+      <div class="active-badge" id="online-btn">
+        <div class="active-dot"></div>
+        <span id="active-count">1</span> Online
+      </div>
+    </div>
+    <button class="menu-btn" id="menu-toggle">&#8226;&#8226;&#8226;</button>
+
+    <div class="dropdown" id="main-dropdown">
+      <button id="menu-edit-profile">Edit Profile</button>
+      <button id="menu-change-name">Change Name</button>
+      <button id="menu-customize">Customize Theme</button>
+      <button id="menu-admin-login">Admin Log In</button>
+    </div>
+  </header>
+
+  <!-- Channel Tabs -->
+  <div class="chat-tabs" id="tab-bar">
+    <button class="tab-btn active" data-target="global">Global</button>
+  </div>
+
+  <!-- Messages Display -->
+  <main class="messages-container" id="messages"></main>
+
+  <div class="typing-bar" id="typing-indicator"></div>
+
+  <!-- Admin Soundboard -->
+  <div class="soundboard" id="soundboard">
+    <span style="font-size: 10px; font-weight: 700; color: #8e8e93; align-self: center;">ADMIN SOUNDS:</span>
+    <button onclick="playAdminSound('scream')">Scream</button>
+    <button onclick="playAdminSound('siren')">Siren</button>
+    <button onclick="playAdminSound('yell')">Creature Yell</button>
+    <button onclick="playAdminSound('laugh')">Cartoon Laugh</button>
+  </div>
+
+  <!-- Emoji Popover -->
+  <div class="emoji-picker" id="emoji-picker">
+    <span>😀</span><span>😂</span><span>🔥</span><span>👍</span><span>❤️</span><span>🎉</span>
+    <span>😎</span><span>💀</span><span>✨</span><span>🙌</span><span>💩</span><span>👀</span>
+  </div>
+
+  <!-- Composer -->
+  <form class="composer" id="chat-form">
+    <button type="button" class="emoji-btn" id="emoji-toggle">😊</button>
+    <input type="text" id="msg-input" placeholder="Message..." maxlength="500" autocomplete="off">
+    <span class="char-count" id="char-counter">0/500</span>
+    <button type="submit" class="send-btn">&#10148;</button>
+  </form>
+
+  <!-- Auth Modal (Sign in / Guest) -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+      <h3>Welcome to Chat</h3>
+      <input type="text" id="username-input" placeholder="Enter unique username..." maxlength="25">
+      <button id="auth-continue-btn">Continue as Guest</button>
+      <button id="auth-login-btn" class="secondary">Sign In / Register</button>
+    </div>
+  </div>
+
+  <!-- Admin Login Modal -->
+  <div class="modal-overlay hidden" id="admin-modal">
+    <div class="modal">
+      <h3>Admin Authentication</h3>
+      <input type="password" id="admin-pass-input" placeholder="Password...">
+      <button id="admin-submit-btn">Login</button>
+      <button id="admin-cancel-btn" class="secondary">Cancel</button>
+    </div>
+  </div>
+
+  <!-- User Profile & Admin Actions Modal -->
+  <div class="modal-overlay hidden" id="profile-modal">
+    <div class="modal">
+      <img id="profile-modal-img" src="" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 8px;">
+      <h3 id="profile-modal-name">User Profile</h3>
+      <button id="pm-start-btn">Private Message</button>
+      <div id="admin-actions" class="hidden" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
+        <p style="font-size: 11px; font-weight: 700; color: #8e8e93; margin-bottom: 6px;">ADMIN CONTROLS</p>
+        <button id="admin-mute-btn" class="secondary" style="color: #ff9500;">Mute User</button>
+        <button id="admin-kick-btn" class="secondary" style="color: #ff3b30;">Kick User</button>
+        <button id="admin-ban-btn" class="secondary" style="color: #ff3b30;">Ban User</button>
+        <button id="admin-jumpscare-btn" class="secondary" style="color: #5856d6;">Jumpscare Target</button>
+      </div>
+      <button id="profile-close-btn" class="secondary" style="margin-top: 10px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Active Users Modal -->
+  <div class="modal-overlay hidden" id="users-modal">
+    <div class="modal">
+      <h3>Active Users</h3>
+      <div id="users-list" style="max-height: 180px; overflow-y: auto; text-align: left; font-size: 13px; margin-bottom: 12px;"></div>
+      <button onclick="document.getElementById('users-modal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+
+  <!-- Jumpscare Overlay -->
+  <div class="jumpscare-overlay hidden" id="jumpscare-overlay">
+    <img src="https://i.imgur.com/2K1C10w.jpg" alt="Jumpscare">
+  </div>
+
+  <script>
+    const DEFAULT_PFP = "https://i.imgur.com/6VBx3io.png";
+    let currentUser = localStorage.getItem('gb_user') || "";
+    let userPfp = localStorage.getItem('gb_pfp') || DEFAULT_PFP;
+    let isAdmin = false;
+    let activeTab = "global";
+    let activeUsers = new Map();
+    let selectedProfileUser = null;
+
+    // Secure SHA-256 verification hash for 'smellypoop123'
+    const ADMIN_HASH = "e528a47fb8423d242f360e28f1e6790928096238b14e5f2cf2958434a9749508";
+
+    async function hashPassword(str) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // UI Helpers
+    const $ = selector => document.querySelector(selector);
+    const messagesEl = $('#messages');
+    const msgInput = $('#msg-input');
+
+    // Auth Initialization
+    if (currentUser) {
+      $('#auth-modal').classList.add('hidden');
+      registerActiveUser(currentUser, userPfp);
+    }
+
+    $('#auth-continue-btn').onclick = () => handleAuth(false);
+    $('#auth-login-btn').onclick = () => handleAuth(true);
+
+    function handleAuth(isAccount) {
+      const name = $('#username-input').value.trim();
+      if (!name) return alert("Please enter a username.");
+      if (Array.from(activeUsers.keys()).includes(name.toLowerCase())) {
+        return alert("Username is currently taken by another online user.");
+      }
+      currentUser = name;
+      localStorage.setItem('gb_user', currentUser);
+      $('#auth-modal').classList.add('hidden');
+      registerActiveUser(currentUser, userPfp);
+    }
+
+    function registerActiveUser(name, pfp) {
+      activeUsers.set(name.toLowerCase(), { name, pfp });
+      updateActiveCount();
+    }
+
+    function updateActiveCount() {
+      $('#active-count').textContent = activeUsers.size;
+    }
+
+    // Dropdown Menu Toggle
+    $('#menu-toggle').onclick = () => {
+      const drop = $('#main-dropdown');
+      drop.style.display = drop.style.display === 'flex' ? 'none' : 'flex';
+    };
+
+    $('#menu-change-name').onclick = () => {
+      $('#main-dropdown').style.display = 'none';
+      $('#auth-modal').classList.remove('hidden');
+    };
+
+    $('#menu-edit-profile').onclick = () => {
+      $('#main-dropdown').style.display = 'none';
+      const link = prompt("Enter valid image URL for profile picture:", userPfp);
+      if (link !== null) {
+        verifyImageUrl(link, (valid) => {
+          if (valid) {
+            userPfp = link;
+            localStorage.setItem('gb_pfp', userPfp);
+            alert("Profile picture updated!");
+          } else {
+            alert("Invalid image link. Please provide a direct image URL (jpg, png, webp).");
+          }
+        });
+      }
+    };
+
+    function verifyImageUrl(url, callback) {
+      const img = new Image();
+      img.onload = () => callback(true);
+      img.onerror = () => callback(false);
+      img.src = url;
+    }
+
+    $('#menu-admin-login').onclick = () => {
+      $('#main-dropdown').style.display = 'none';
+      if (isAdmin) {
+        isAdmin = false;
+        $('#soundboard').style.display = 'none';
+        $('#menu-admin-login').textContent = "Admin Log In";
+        alert("Logged out of Admin mode.");
+      } else {
+        $('#admin-modal').classList.remove('hidden');
+      }
+    };
+
+    $('#admin-cancel-btn').onclick = () => $('#admin-modal').classList.add('hidden');
+
+    $('#admin-submit-btn').onclick = async () => {
+      const pass = $('#admin-pass-input').value;
+      const hashed = await hashPassword(pass);
+      if (hashed === ADMIN_HASH) {
+        isAdmin = true;
+        $('#admin-modal').classList.add('hidden');
+        $('#soundboard').style.display = 'flex';
+        $('#menu-admin-login').textContent = "Log Out Admin";
+        alert("Admin authenticated securely.");
+      } else {
+        alert("Incorrect admin password.");
+      }
+    };
+
+    // Emoji Picker
+    $('#emoji-toggle').onclick = () => {
+      const picker = $('#emoji-picker');
+      picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+    };
+
+    $('#emoji-picker').onclick = (e) => {
+      if (e.target.tagName === 'SPAN') {
+        msgInput.value += e.target.textContent;
+        $('#emoji-picker').style.display = 'none';
+        updateCharCounter();
+      }
+    };
+
+    // Character Counter
+    msgInput.oninput = () => {
+      updateCharCounter();
+      broadcastTyping();
+    };
+
+    function updateCharCounter() {
+      $('#char-counter').textContent = `${msgInput.value.length}/500`;
+    }
+
+    // Messaging System
+    $('#chat-form').onsubmit = (e) => {
+      e.preventDefault();
+      const text = msgInput.value.trim();
+      if (!text) return;
+
+      // Command Execution
+      if (text.startsWith('/') && isAdmin) {
+        handleAdminCommand(text);
+        msgInput.value = '';
+        updateCharCounter();
+        return;
+      }
+
+      appendBubble({ user: currentUser, pfp: userPfp, text, time: new Date() }, true);
+      msgInput.value = '';
+      updateCharCounter();
+    };
+
+    function appendBubble(msg, isMe) {
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${isMe ? 'me' : 'other'}`;
+
+      const img = document.createElement('img');
+      img.className = 'bubble-avatar';
+      img.src = msg.pfp || DEFAULT_PFP;
+      img.onclick = () => openProfileModal(msg.user, msg.pfp);
+
+      const content = document.createElement('div');
+      content.className = 'bubble-content';
+
+      const user = document.createElement('div');
+      user.className = 'bubble-user';
+      user.textContent = msg.user;
+      user.onclick = () => openProfileModal(msg.user, msg.pfp);
+
+      const body = document.createElement('div');
+      body.textContent = msg.text;
+
+      const time = document.createElement('div');
+      time.className = 'bubble-time';
+      time.textContent = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      content.append(user, body, time);
+      if (isMe) {
+        bubble.append(content, img);
+      } else {
+        bubble.append(img, content);
+      }
+
+      messagesEl.appendChild(bubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Profile & Moderation
+    function openProfileModal(username, pfp) {
+      selectedProfileUser = username;
+      $('#profile-modal-name').textContent = username;
+      $('#profile-modal-img').src = pfp || DEFAULT_PFP;
+      $('#profile-modal').classList.remove('hidden');
+
+      if (isAdmin && username !== currentUser) {
+        $('#admin-actions').classList.remove('hidden');
+      } else {
+        $('#admin-actions').classList.add('hidden');
+      }
+    }
+
+    $('#profile-close-btn').onclick = () => $('#profile-modal').classList.add('hidden');
+
+    $('#pm-start-btn').onclick = () => {
+      $('#profile-modal').classList.add('hidden');
+      if (selectedProfileUser === currentUser) return alert("Cannot PM yourself.");
+      createPrivateTab(selectedProfileUser);
+    };
+
+    function createPrivateTab(username) {
+      let tab = document.querySelector(`[data-target="${username}"]`);
+      if (!tab) {
+        tab = document.createElement('button');
+        tab.className = 'tab-btn';
+        tab.dataset.target = username;
+        tab.textContent = `@${username}`;
+        tab.onclick = () => switchTab(username);
+        $('#tab-bar').appendChild(tab);
+      }
+      switchTab(username);
+    }
+
+    function switchTab(target) {
+      activeTab = target;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.target === target));
+      messagesEl.innerHTML = '';
+    }
+
+    // Admin Commands & Actions
+    function handleAdminCommand(cmd) {
+      const parts = cmd.split(' ');
+      const action = parts[0].toLowerCase();
+      const arg = parts.slice(1).join(' ');
+
+      if (action === '/newtab' && arg) {
+        window.open(arg.startsWith('http') ? arg : 'https://' + arg, '_blank');
+      } else {
+        alert(`Executed admin command: ${action}`);
+      }
+    }
+
+    $('#admin-jumpscare-btn').onclick = () => {
+      triggerJumpscare();
+      $('#profile-modal').classList.add('hidden');
+    };
+
+    function triggerJumpscare() {
+      const overlay = $('#jumpscare-overlay');
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.add('hidden'), 3500);
+    }
+
+    function playAdminSound(type) {
+      if (!isAdmin) return;
+      alert(`Playing admin soundboard audio: ${type}`);
+    }
+
+    // Active Users List Modal
+    $('#online-btn').onclick = () => {
+      const list = $('#users-list');
+      list.innerHTML = '';
+      activeUsers.forEach(u => {
+        const item = document.createElement('div');
+        item.style.cssText = "padding:6px 0; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;";
+        item.innerHTML = `<img src="${u.pfp}" style="width:24px;height:24px;border-radius:50%;"> <span>${u.name}</span>`;
+        list.appendChild(item);
+      });
+      $('#users-modal').classList.remove('hidden');
+    };
+
+    // Typing Status Simulation
+    let typingTimeout;
+    function broadcastTyping() {
+      $('#typing-indicator').textContent = `${currentUser} is typing...`;
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => { $('#typing-indicator').textContent = ''; }, 2000);
+    }
+  </script>
+</body>
+</html>
