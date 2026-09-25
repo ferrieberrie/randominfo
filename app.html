@@ -29,12 +29,14 @@
   const hasAdminAccess = () => admin;
   const ADMIN_KEY_SHA256 = '22a61942f9fb074c9f22af6bf7a550eaf708f6674be8dccf15c82e22fd4f4f86';
   const server = config.server.replace(/\/+$/, '');
-  async function publish(chan,payload,timeout=20000,cacheMessage=true){
+  const encodeBase64=value=>{const bytes=new TextEncoder().encode(value);let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);};
+  const decodeBase64=value=>{const binary=atob(value),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new TextDecoder().decode(bytes);};
+  async function publishOne(chan,payload,timeout=20000,cacheMessage=true,retryRateLimits=false){
     const body=JSON.stringify({topic:'global-bookmarklet-'+chan,message:JSON.stringify(payload),cache:cacheMessage?'yes':'no'});
-    for(let attempt=0;attempt<2;attempt++){
+    for(let attempt=0;;attempt++){
       const response=await fetch(server,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(timeout)});
-      if(response.status===429 && cacheMessage && attempt===0){
-        const seconds=Math.min(4,Math.max(1,Number(response.headers.get('Retry-After'))||2));
+      if(response.status===429 && (retryRateLimits || (cacheMessage && attempt===0))){
+        const seconds=Math.min(60,Math.max(1,Number(response.headers.get('Retry-After'))||2));
         await new Promise(resolve=>setTimeout(resolve,seconds*1000));
         continue;
       }
@@ -43,6 +45,16 @@
       if(envelope.event!=='message'||!envelope.id)throw new Error('Unexpected server response');
       return envelope;
     }
+  }
+  async function publish(chan,payload,timeout=20000,cacheMessage=true){
+    const message=JSON.stringify(payload),retryRateLimits=hasAdminAccess()&&cacheMessage;
+    if(hasAdminAccess()&&cacheMessage&&new TextEncoder().encode(message).length>3000){
+      const encoded=encodeBase64(message),chunkId=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now(),size=2600,total=Math.ceil(encoded.length/size);
+      let lastEnvelope;
+      for(let part=0;part<total;part++)lastEnvelope=await publishOne(chan,{type:'admin-chunk',chunkId,part,total,data:encoded.slice(part*size,(part+1)*size)},timeout,true,true);
+      return {...lastEnvelope,id:chunkId,message};
+    }
+    return publishOne(chan,payload,timeout,cacheMessage,retryRateLimits);
   }
   const channels = ['channel-1', 'channel-2', 'channel-3'];
   let channel = read('gb_channel', channels[0]);
@@ -117,6 +129,7 @@
   const bytesToHex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
   function updateAdminUI() {
     const authorized=hasAdminAccess();
+    for(const field of [input,$('.private-form input')]){if(authorized)field.removeAttribute('maxlength');else field.setAttribute('maxlength','2000');}
     $('.soundboard').hidden = !authorized;
     $('.admin-state').textContent = authorized ? 'Admin unlocked for this session' : admin ? 'Admin authorization incomplete' : 'Admin locked';
     $('.admin-unlock .menu-label').textContent = authorized ? 'Admin Logged In' : admin ? 'Authorization Incomplete' : 'Admin Login';
@@ -152,7 +165,7 @@
   const online = new Map(), typingUsers = new Map();
   let lastTypingActive = false, lastPresenceSent = 0, pendingLink = null, privateTarget = '', privateTargetId = '', contactTarget = null, toastTimer;
   function safeRemoteURL(value) {
-    try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && url.href.length <= 2048 ? url.href : ''; }
+    try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : ''; }
     catch { return ''; }
   }
   function publishSignal(data) {
@@ -279,7 +292,7 @@
     alert:'https://upload.wikimedia.org/wikipedia/commons/c/cb/Cartoon_Laugh.ogg'
   };
   const soundNames={chime:'Scream',fanfare:'Siren',boing:'Creature yell',alert:'Cartoon laugh'};
-  let audioContext, soundSending=false, lastSound=-Infinity, lastBroadcast=-Infinity, horrorSource;
+  let audioContext, horrorSource;
   const soundBuffers=new Map(), soundLoads=new Map(), soundAborts=new Set(), playing=new Set();
   async function loadSound(name) {
     if(soundBuffers.has(name))return soundBuffers.get(name);
@@ -302,8 +315,8 @@
   function onAudioGesture(event) {if(event.isTrusted && event.composedPath().includes(host))activateAudio();}
   function stopHorror() {if(horrorSource){try{horrorSource.stop();}catch{}horrorSource=null;}}
   async function playSound(name,prank=false) {
-    if(!audioContext || audioContext.state!=='running' || (!prank && Date.now()-lastSound<2200))return;
-    const requested=Date.now(),chan=channel;if(!prank)lastSound=requested;
+    if(!audioContext || audioContext.state!=='running')return;
+    const requested=Date.now(),chan=channel;
     const buffer=await loadSound(name);
     if(closed || chan!==channel || Date.now()-requested>5000 || (prank && ($('.prank').hidden || prankBlackout)))return;
     if(!buffer){$('.sound-status').textContent='Recording unavailable on this page. Check your connection or site restrictions.';return;}
@@ -335,7 +348,6 @@
   }
   const dismissPrank=()=>{ $('.prank').hidden=true;clearTimeout(prankTimer);clearTimeout(blackoutTimer);stopHorror();stopRumble(); };
   function jumpscare() {
-    if(Date.now()-lastPrank<10000) return;
     if(window.self!==window.top){lastPrank=Date.now();window.parent.postMessage({type:'jumpscare',img:prankImage.src,duration:6000},'*');return;}
     lastPrank=Date.now();prankBlackout=false;const overlay=$('.prank');overlay.hidden=false;
     overlay.classList.toggle('attack',false);overlay.classList.toggle('blackout',false);void overlay.offsetWidth;overlay.classList.toggle('attack',true);
@@ -343,15 +355,14 @@
     clearTimeout(prankTimer);prankTimer=setTimeout(dismissPrank,6000);
   }
   for(const name of Object.keys(soundNames)) $('.sound-'+name).onclick=async()=>{
-    if(!hasAdminAccess() || restriction() || soundSending || closed) return;
-    if(Date.now()-lastBroadcast<3000) { $('.sound-status').textContent='Wait a moment before playing another sound.';return; }
+    if(!hasAdminAccess() || restriction() || closed) return;
     activateAudio();
-    const chan=channel;soundSending=true;updateModeration();
+    const chan=channel;
     try {
       const envelope=await publish(chan,{type:'sound',sound:name,by:cleanUser},15000);
-      lastBroadcast=Date.now();if(!closed) accept(envelope,chan,false);
+      if(!closed) accept(envelope,chan,false);
     } catch {if(!closed && channel===chan) $('.sound-status').textContent='Sound could not be confirmed. Try again shortly.';}
-    finally {soundSending=false;if(!closed)updateModeration();}
+    finally {if(!closed)updateModeration();}
   };
   const historyKey = chan => 'gb_history_v2:' + server + ':' + chan;
   function valid(x) { return x && typeof x.id === 'string' && Number.isFinite(x.time) && x.time >= Date.now() - WEEK && x.time <= Date.now() + 60000 && typeof x.user === 'string' && typeof x.text === 'string' && (!x.avatar || !!safeAvatar(x.avatar)); }
@@ -394,8 +405,8 @@
     else if(lastRestriction) { $('.moderation').textContent='You can send messages again.';$('.moderation').dataset.state='success'; }
     else { $('.moderation').textContent='';$('.moderation').dataset.state=''; }
     lastRestriction=reason;
-    input.disabled=!!reason; send.disabled=!!reason || sending;
-    for(const name of Object.keys(soundNames)) $('.sound-'+name).disabled=!!reason || soundSending;
+    input.disabled=!!reason; send.disabled=!!reason || (sending && !hasAdminAccess());
+    for(const name of Object.keys(soundNames)) $('.sound-'+name).disabled=!!reason;
     if(!reason && roomLock(channel)?.active) $('.moderation').textContent='Channel locked · moderators can still send.';
   }
   function moderate(data,envelope,chan) {
@@ -408,7 +419,7 @@
       if(data.type==='pin' && (typeof data.text!=='string' || !data.text.trim()))return;
       const old=pinState(chan);
       if(!old || envelope.time>old.time || (envelope.time===old.time && envelope.id>old.id)) {
-        const pin={text:data.type==='pin'?data.text.slice(0,500):'',time:envelope.time,id:envelope.id};pins.set(chan,pin);write(pinKey(chan),pin);if(chan===channel)showPin();
+        const pin={text:data.type==='pin'?data.text:'',time:envelope.time,id:envelope.id};pins.set(chan,pin);write(pinKey(chan),pin);if(chan===channel)showPin();
       }
       return;
     }
@@ -464,13 +475,22 @@
     if (!rows.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'No saved messages yet. Start a conversation.'; frag.append(empty); }
     messages.replaceChildren(frag); messages.scrollTop = atBottom ? messages.scrollHeight : scroll;
   }
-  const commandIDs = new Set();
+  const commandIDs = new Set(),chunkMessages=new Map();
   function accept(envelope, chan, allowCommands) {
     if (!envelope || envelope.event !== 'message' || typeof envelope.message !== 'string' || typeof envelope.id !== 'string' || !Number.isFinite(envelope.time)) return;
     lastEnvelopeTime.set(chan, Math.max(lastEnvelopeTime.get(chan) || 0, envelope.time));
     let data; try { data = JSON.parse(envelope.message); } catch { return; }
     if (!data || typeof data !== 'object') return;
     const age = Date.now() - envelope.time * 1000;
+    if(data.type==='admin-chunk'){
+      if(typeof data.chunkId!=='string'||!Number.isInteger(data.part)||!Number.isInteger(data.total)||data.part<0||data.total<1||data.part>=data.total||typeof data.data!=='string')return;
+      let group=chunkMessages.get(data.chunkId);if(!group||group.total!==data.total){group={total:data.total,parts:new Map(),time:envelope.time};chunkMessages.set(data.chunkId,group);}
+      group.parts.set(data.part,data.data);
+      if(group.parts.size===group.total){
+        try{const encoded=Array.from({length:group.total},(_,part)=>group.parts.get(part)).join(''),message=decodeBase64(encoded);chunkMessages.delete(data.chunkId);accept({...envelope,id:data.chunkId,message,time:group.time},chan,allowCommands);}catch{chunkMessages.delete(data.chunkId);}
+      }
+      return;
+    }
     if (data.type === 'presence') {
       if (chan === channel && age >= -5000 && age < 120000 && typeof data.user === 'string' && typeof data.session === 'string') {
         online.set(data.session, {user:data.user.slice(0,80), avatar:safeAvatar(data.avatar), clientId:typeof data.clientId==='string'?data.clientId:'', seen:Date.now()}); renderPresence();
@@ -488,7 +508,7 @@
       const addressedToMe=typeof data.targetId==='string'?data.targetId===clientId:data.target===cleanUser;
       const sentByMe=typeof data.senderId==='string'?data.senderId===clientId:data.from===cleanUser;
       if (!addressedToMe && !sentByMe) return;
-      const privateMessage={id:envelope.id,time:envelope.time*1000,user:data.from,text:data.text.slice(0,2000),avatar:safeAvatar(data.avatar),senderId:typeof data.senderId==='string'?data.senderId:'',private:true,target:data.target,targetId:typeof data.targetId==='string'?data.targetId:''};
+      const privateMessage={id:envelope.id,time:envelope.time*1000,user:data.from,text:data.text,avatar:safeAvatar(data.avatar),senderId:typeof data.senderId==='string'?data.senderId:'',private:true,target:data.target,targetId:typeof data.targetId==='string'?data.targetId:''};
       if(!valid(privateMessage))return;
       getHistory(chan).set(privateMessage.id,privateMessage);persist(chan);
       if(channel===chan){renderPrivate();if(addressedToMe&&!sentByMe&&age>=0&&age<15000)showMessageToast(data.from,data.text,safeAvatar(data.avatar),true);}
@@ -627,7 +647,7 @@
     event.preventDefault();const privateInput=$('.private-form input'),text=privateInput.value.trim(),target=privateTarget,chan=channel;
     if(!text||!target||restriction())return;
     const payload={type:'private',target,targetId:privateTargetId,from:cleanUser,senderId:clientId,text};if(avatar)payload.avatar=avatar;
-    $('.private-form button').disabled=true;
+    if(!hasAdminAccess())$('.private-form button').disabled=true;
     try{
       const envelope=await publish(chan,payload,20000);accept(envelope,chan,false);
       if(privateTarget===target)privateInput.value='';
@@ -651,7 +671,7 @@
       else if(/^\/(lock|unlock)$/i.test(text)) payload={type:text.slice(1).toLowerCase(),by:cleanUser};
       else if(/^\/clear$/i.test(text))payload={type:'clear',by:cleanUser};
       else if(/^\/unpin$/i.test(text))payload={type:'unpin',by:cleanUser};
-      else if(/^\/pin\s+\S/i.test(text)){const value=text.replace(/^\/pin\s+/i,'');if(value.length>500)return notice('Keep pinned messages under 500 characters.');payload={type:'pin',text:value,by:cleanUser};}
+      else if(/^\/pin\s+\S/i.test(text)){const value=text.replace(/^\/pin\s+/i,'');payload={type:'pin',text:value,by:cleanUser};}
       else if(/^\/announce\s+\S/i.test(text)) payload={type:'announce',by:cleanUser,text:text.replace(/^\/announce\s+/i,'')};
       else {
       const match=text.match(/^\/(mute|unmute|kick|ban|unban|jumpscare)\s+(?:"([^"]+)"|(\S+))(?:\s+(\S+))?$/i);
@@ -663,7 +683,7 @@
 
     }
     const body = JSON.stringify(payload);
-    if (new TextEncoder().encode(body).length > 4000) return notice('Message is too long. Please shorten it.');
+    if (!hasAdminAccess() && new TextEncoder().encode(body).length > 4000) return notice('Message is too long. Please shorten it.');
     sending = true; updateModeration(); notice('Sending…');
     try {
       const envelope = await publish(chan,payload,20000);
