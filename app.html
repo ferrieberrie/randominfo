@@ -5,75 +5,130 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Chat App</title>
   <style>
+    /* Theme CSS Variables */
     :root {
       --bg-color: #f2f2f7;
-      --card-bg: rgba(255, 255, 255, 0.85);
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --card-bg: #ffffff;
       --primary: #007aff;
-      --bubble-me: #dcf8c6;
+      --bubble-me: #007aff;
+      --text-me: #ffffff;
       --bubble-other: #ffffff;
+      --text-other: #000000;
       --text: #000000;
       --text-sub: #8e8e93;
       --border: rgba(60, 60, 67, 0.12);
+      --chat-bg: #e5e5ea;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+    [data-theme="dark"] {
+      --bg-color: #000000;
+      --header-bg: rgba(28, 28, 30, 0.85);
+      --card-bg: #1c1c1e;
+      --primary: #0a84ff;
+      --bubble-me: #0a84ff;
+      --text-me: #ffffff;
+      --bubble-other: #2c2c2e;
+      --text-other: #ffffff;
+      --text: #ffffff;
+      --text-sub: #8e8e93;
+      --border: rgba(255, 255, 255, 0.12);
+      --chat-bg: #121214;
+    }
+
+    [data-theme="emerald"] {
+      --bg-color: #061e14;
+      --header-bg: rgba(10, 46, 31, 0.85);
+      --card-bg: #0d3826;
+      --primary: #34c759;
+      --bubble-me: #34c759;
+      --text-me: #000000;
+      --bubble-other: #144f37;
+      --text-other: #ffffff;
+      --text: #ffffff;
+      --text-sub: #63a375;
+      --border: rgba(52, 199, 89, 0.2);
+      --chat-bg: #03120b;
+    }
+
+    [data-theme="cyberpunk"] {
+      --bg-color: #0f051d;
+      --header-bg: rgba(30, 11, 54, 0.85);
+      --card-bg: #220b3d;
+      --primary: #ff007f;
+      --bubble-me: #ff007f;
+      --text-me: #ffffff;
+      --bubble-other: #381261;
+      --text-other: #00f0ff;
+      --text: #00f0ff;
+      --text-sub: #b359ff;
+      --border: rgba(255, 0, 127, 0.3);
+      --chat-bg: #080211;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; transition: background 0.2s ease, color 0.2s ease; }
     body { background: var(--bg-color); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
     /* Header */
-    header { height: 50px; background: var(--card-bg); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; position: relative; z-index: 10; }
+    header { height: 52px; background: var(--header-bg); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; position: relative; z-index: 10; }
     .header-left { display: flex; align-items: center; gap: 8px; }
-    .active-badge { background: #e5e5ea; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--primary); display: flex; align-items: center; gap: 4px; }
-    .active-dot { width: 6px; height: 6px; background: #34c759; border-radius: 50%; }
+    .active-badge { background: var(--card-bg); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--primary); display: flex; align-items: center; gap: 5px; border: 1px solid var(--border); }
+    .active-dot { width: 6px; height: 6px; background: #34c759; border-radius: 50%; box-shadow: 0 0 6px #34c759; }
 
-    /* Dropdown Menu */
-    .menu-btn { background: none; border: none; font-size: 20px; color: var(--primary); cursor: pointer; padding: 4px 8px; }
-    .dropdown { position: absolute; top: 52px; right: 12px; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); width: 170px; display: none; flex-direction: column; overflow: hidden; border: 1px solid var(--border); z-index: 100; }
+    .menu-btn { background: none; border: none; font-size: 18px; color: var(--primary); cursor: pointer; padding: 4px 8px; font-weight: bold; }
+    .dropdown { position: absolute; top: 54px; right: 12px; background: var(--card-bg); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); width: 180px; display: none; flex-direction: column; overflow: hidden; border: 1px solid var(--border); z-index: 100; }
     .dropdown button { padding: 12px 16px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text); }
     .dropdown button:last-child { border-bottom: none; }
-    .dropdown button:hover { background: #f2f2f7; }
+    .dropdown button:hover { background: var(--border); }
 
-    /* Chat Views & Tabs */
-    .chat-tabs { display: flex; background: #e5e5ea; padding: 2px; border-bottom: 1px solid var(--border); }
-    .tab-btn { flex: 1; padding: 6px; border: none; background: none; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 6px; cursor: pointer; }
-    .tab-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    /* Channel Tabs */
+    .chat-tabs { display: flex; background: var(--header-bg); padding: 4px 8px; gap: 4px; border-bottom: 1px solid var(--border); }
+    .tab-btn { flex: 1; padding: 6px; border: none; background: none; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tab-btn.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid var(--border); }
 
-    /* Message Area */
-    .messages-container { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #e5ddd5; background-image: radial-gradient(rgba(0,0,0,0.03) 1px, transparent 0); background-size: 12px 12px; }
+    /* Message List */
+    .messages-container { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--chat-bg); }
     
-    /* WhatsApp Speech Bubbles */
-    .bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; position: relative; font-size: 13px; line-height: 1.4; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1); display: flex; gap: 8px; }
-    .bubble.me { align-self: flex-end; background: var(--bubble-me); border-bottom-right-radius: 2px; }
-    .bubble.other { align-self: flex-start; background: var(--bubble-other); border-bottom-left-radius: 2px; }
-    .bubble-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+    /* Sleek Speech Bubbles */
+    .bubble { max-width: 80%; padding: 8px 12px; border-radius: 16px; position: relative; font-size: 13px; line-height: 1.4; word-break: break-word; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; gap: 8px; align-items: flex-end; }
+    .bubble.me { align-self: flex-end; background: var(--bubble-me); color: var(--text-me); border-bottom-right-radius: 4px; }
+    .bubble.other { align-self: flex-start; background: var(--bubble-other); color: var(--text-other); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+    .bubble-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; cursor: pointer; flex-shrink: 0; }
     .bubble-content { flex: 1; }
-    .bubble-user { font-size: 10px; font-weight: 700; color: #555; margin-bottom: 2px; cursor: pointer; }
-    .bubble-time { font-size: 9px; color: var(--text-sub); text-align: right; margin-top: 4px; }
+    .bubble-user { font-size: 10px; font-weight: 700; opacity: 0.7; margin-bottom: 2px; cursor: pointer; }
+    .bubble-time { font-size: 8px; opacity: 0.6; text-align: right; margin-top: 4px; }
 
-    /* Typing Indicator */
-    .typing-bar { height: 18px; padding: 0 12px; font-size: 10px; color: var(--text-sub); font-style: italic; background: transparent; }
+    .typing-bar { height: 16px; padding: 0 14px; font-size: 10px; color: var(--text-sub); font-style: italic; background: transparent; }
 
     /* Soundboard Drawer (Admin Only) */
-    .soundboard { background: #fff; border-top: 1px solid var(--border); padding: 8px 12px; display: none; gap: 6px; overflow-x: auto; }
-    .soundboard button { background: #f2f2f7; border: 1px solid var(--border); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .soundboard { background: var(--card-bg); border-top: 1px solid var(--border); padding: 8px 12px; display: none; gap: 6px; overflow-x: auto; }
+    .soundboard button { background: var(--bg-color); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 
     /* Composer */
-    .composer { padding: 8px 12px; background: var(--card-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; position: relative; }
+    .composer { padding: 10px 12px; background: var(--header-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; position: relative; }
     .emoji-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
-    .composer input { flex: 1; border: 1px solid var(--border); border-radius: 18px; padding: 8px 14px; font-size: 13px; outline: none; background: #fff; }
-    .composer button.send-btn { background: var(--primary); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .char-count { font-size: 9px; color: var(--text-sub); position: absolute; right: 52px; bottom: -2px; }
+    .composer input { flex: 1; border: 1px solid var(--border); border-radius: 20px; padding: 9px 14px; font-size: 13px; outline: none; background: var(--card-bg); color: var(--text); }
+    .composer button.send-btn { background: var(--primary); color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .char-count { font-size: 9px; color: var(--text-sub); position: absolute; right: 54px; bottom: 2px; }
 
-    /* Popovers & Modals */
-    .emoji-picker { position: absolute; bottom: 56px; left: 12px; background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 8px; display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 50; }
+    /* Emoji Picker */
+    .emoji-picker { position: absolute; bottom: 60px; left: 12px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 8px; display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 50; }
     .emoji-picker span { font-size: 20px; cursor: pointer; text-align: center; }
 
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
-    .modal { background: #fff; width: 88%; max-width: 320px; border-radius: 16px; padding: 20px; box-shadow: 0 12px 32px rgba(0,0,0,0.2); text-align: center; }
-    .modal h3 { font-size: 16px; margin-bottom: 12px; }
-    .modal input { width: 100%; border: 1px solid var(--border); padding: 10px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; outline: none; }
-    .modal button { width: 100%; padding: 10px; border: none; background: var(--primary); color: #fff; font-weight: 600; border-radius: 10px; cursor: pointer; margin-top: 6px; }
-    .modal button.secondary { background: #e5e5ea; color: var(--text); }
+    /* Modals */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal { background: var(--card-bg); color: var(--text); width: 88%; max-width: 330px; border-radius: 20px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,0.3); text-align: center; border: 1px solid var(--border); }
+    .modal h3 { font-size: 17px; margin-bottom: 12px; font-weight: 700; }
+    .modal p.hint { font-size: 11px; color: var(--text-sub); margin-bottom: 12px; line-height: 1.4; text-align: left; background: var(--bg-color); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+    .modal input { width: 100%; border: 1px solid var(--border); background: var(--bg-color); color: var(--text); padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; outline: none; }
+    .modal button { width: 100%; padding: 11px; border: none; background: var(--primary); color: #fff; font-weight: 600; border-radius: 10px; cursor: pointer; margin-top: 6px; font-size: 13px; }
+    .modal button.secondary { background: var(--bg-color); color: var(--text); border: 1px solid var(--border); }
     .hidden { display: none !important; }
+
+    /* Theme Option Grid */
+    .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .theme-card { padding: 12px; border-radius: 12px; border: 2px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; text-align: center; }
+    .theme-card.active { border-color: var(--primary); background: rgba(0,122,255,0.1); }
 
     /* Jumpscare Overlay */
     .jumpscare-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; }
@@ -85,7 +140,7 @@
   <!-- App Header -->
   <header>
     <div class="header-left">
-      <span style="font-weight: 700; font-size: 15px;">Global Chat</span>
+      <span style="font-weight: 800; font-size: 15px; letter-spacing: -0.3px;">Global Chat</span>
       <div class="active-badge" id="online-btn">
         <div class="active-dot"></div>
         <span id="active-count">1</span> Online
@@ -94,26 +149,28 @@
     <button class="menu-btn" id="menu-toggle">&#8226;&#8226;&#8226;</button>
 
     <div class="dropdown" id="main-dropdown">
-      <button id="menu-edit-profile">Edit Profile</button>
-      <button id="menu-change-name">Change Name</button>
+      <button id="menu-edit-profile">Edit Profile PFP</button>
+      <button id="menu-change-name">Sign Out / Switch</button>
       <button id="menu-customize">Customize Theme</button>
       <button id="menu-admin-login">Admin Log In</button>
     </div>
   </header>
 
-  <!-- Channel Tabs -->
+  <!-- 3 Channel Tabs -->
   <div class="chat-tabs" id="tab-bar">
-    <button class="tab-btn active" data-target="global">Global</button>
+    <button class="tab-btn active" data-target="global"># Global</button>
+    <button class="tab-btn" data-target="lounge"># Lounge</button>
+    <button class="tab-btn" data-target="memes"># Memes</button>
   </div>
 
-  <!-- Messages Display -->
+  <!-- Messages Container -->
   <main class="messages-container" id="messages"></main>
 
   <div class="typing-bar" id="typing-indicator"></div>
 
   <!-- Admin Soundboard -->
   <div class="soundboard" id="soundboard">
-    <span style="font-size: 10px; font-weight: 700; color: #8e8e93; align-self: center;">ADMIN SOUNDS:</span>
+    <span style="font-size: 10px; font-weight: 700; color: var(--text-sub); align-self: center;">ADMIN SOUNDS:</span>
     <button onclick="playAdminSound('scream')">Scream</button>
     <button onclick="playAdminSound('siren')">Siren</button>
     <button onclick="playAdminSound('yell')">Creature Yell</button>
@@ -129,18 +186,20 @@
   <!-- Composer -->
   <form class="composer" id="chat-form">
     <button type="button" class="emoji-btn" id="emoji-toggle">😊</button>
-    <input type="text" id="msg-input" placeholder="Message..." maxlength="500" autocomplete="off">
+    <input type="text" id="msg-input" placeholder="Message channel..." maxlength="500" autocomplete="off">
     <span class="char-count" id="char-counter">0/500</span>
     <button type="submit" class="send-btn">&#10148;</button>
   </form>
 
-  <!-- Auth Modal (Sign in / Guest) -->
+  <!-- Auth Modal (Sign In / Register with Password) -->
   <div class="modal-overlay" id="auth-modal">
     <div class="modal">
-      <h3>Welcome to Chat</h3>
-      <input type="text" id="username-input" placeholder="Enter unique username..." maxlength="25">
-      <button id="auth-continue-btn">Continue as Guest</button>
-      <button id="auth-login-btn" class="secondary">Sign In / Register</button>
+      <h3 id="auth-title">Account Access</h3>
+      <input type="text" id="username-input" placeholder="Username" maxlength="25">
+      <input type="password" id="password-input" placeholder="Password">
+      <button id="auth-login-btn">Sign In</button>
+      <button id="auth-register-btn" class="secondary">Register New Account</button>
+      <button id="auth-guest-btn" class="secondary" style="margin-top: 8px; opacity: 0.8;">Continue as Guest</button>
     </div>
   </div>
 
@@ -148,33 +207,44 @@
   <div class="modal-overlay hidden" id="admin-modal">
     <div class="modal">
       <h3>Admin Authentication</h3>
-      <input type="password" id="admin-pass-input" placeholder="Password...">
+      <input type="password" id="admin-pass-input" placeholder="Password (smellypoop123)">
       <button id="admin-submit-btn">Login</button>
       <button id="admin-cancel-btn" class="secondary">Cancel</button>
     </div>
   </div>
 
-  <!-- User Profile & Admin Actions Modal -->
+  <!-- Profile & Admin Action Modal -->
   <div class="modal-overlay hidden" id="profile-modal">
     <div class="modal">
-      <img id="profile-modal-img" src="" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 8px;">
+      <img id="profile-modal-img" src="" style="width: 68px; height: 68px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid var(--primary);">
       <h3 id="profile-modal-name">User Profile</h3>
       <button id="pm-start-btn">Private Message</button>
       <div id="admin-actions" class="hidden" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
-        <p style="font-size: 11px; font-weight: 700; color: #8e8e93; margin-bottom: 6px;">ADMIN CONTROLS</p>
-        <button id="admin-mute-btn" class="secondary" style="color: #ff9500;">Mute User</button>
-        <button id="admin-kick-btn" class="secondary" style="color: #ff3b30;">Kick User</button>
-        <button id="admin-ban-btn" class="secondary" style="color: #ff3b30;">Ban User</button>
-        <button id="admin-jumpscare-btn" class="secondary" style="color: #5856d6;">Jumpscare Target</button>
+        <p style="font-size: 10px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px;">ADMIN CONTROLS</p>
+        <button id="admin-jumpscare-btn" class="secondary" style="color: #ff3b30;">Jumpscare Target</button>
       </div>
       <button id="profile-close-btn" class="secondary" style="margin-top: 10px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Theme Selector Modal -->
+  <div class="modal-overlay hidden" id="theme-modal">
+    <div class="modal">
+      <h3>Customize Theme</h3>
+      <div class="theme-grid">
+        <div class="theme-card active" onclick="setTheme('light')">☀️ Light</div>
+        <div class="theme-card" onclick="setTheme('dark')">🌙 Dark</div>
+        <div class="theme-card" onclick="setTheme('emerald')">🌿 Emerald</div>
+        <div class="theme-card" onclick="setTheme('cyberpunk')">⚡ Cyberpunk</div>
+      </div>
+      <button onclick="document.getElementById('theme-modal').classList.add('hidden')">Done</button>
     </div>
   </div>
 
   <!-- Active Users Modal -->
   <div class="modal-overlay hidden" id="users-modal">
     <div class="modal">
-      <h3>Active Users</h3>
+      <h3>Active Online Users</h3>
       <div id="users-list" style="max-height: 180px; overflow-y: auto; text-align: left; font-size: 13px; margin-bottom: 12px;"></div>
       <button onclick="document.getElementById('users-modal').classList.add('hidden')">Close</button>
     </div>
@@ -182,50 +252,95 @@
 
   <!-- Jumpscare Overlay -->
   <div class="jumpscare-overlay hidden" id="jumpscare-overlay">
-    <img src="https://i.imgur.com/2K1C10w.jpg" alt="Jumpscare">
+    <img src="jumpscare.png" alt="Jumpscare">
   </div>
 
   <script>
-    const DEFAULT_PFP = "https://i.imgur.com/6VBx3io.png";
+    // Updated Default PFP
+    const DEFAULT_PFP = "https://i.pinimg.com/originals/13/74/20/137420f5b9c39bc911e472f5d20f053e.jpg?nii=t";
+    
     let currentUser = localStorage.getItem('gb_user') || "";
     let userPfp = localStorage.getItem('gb_pfp') || DEFAULT_PFP;
+    let currentTheme = localStorage.getItem('gb_theme') || "light";
     let isAdmin = false;
     let activeTab = "global";
     let activeUsers = new Map();
     let selectedProfileUser = null;
 
-    // Secure SHA-256 verification hash for 'smellypoop123'
-    const ADMIN_HASH = "e528a47fb8423d242f360e28f1e6790928096238b14e5f2cf2958434a9749508";
+    // Load Persistent Chat History from localStorage
+    let chatHistory = JSON.parse(localStorage.getItem('gb_chat_history')) || {
+      global: [
+        { user: "System", pfp: DEFAULT_PFP, text: "Welcome to #Global channel!", time: new Date() }
+      ],
+      lounge: [
+        { user: "System", pfp: DEFAULT_PFP, text: "Welcome to #Lounge channel!", time: new Date() }
+      ],
+      memes: [
+        { user: "System", pfp: DEFAULT_PFP, text: "Welcome to #Memes channel!", time: new Date() }
+      ]
+    };
 
-    async function hashPassword(str) {
-      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
+    // Load Accounts database from localStorage
+    let accounts = JSON.parse(localStorage.getItem('gb_accounts')) || {};
 
-    // UI Helpers
     const $ = selector => document.querySelector(selector);
     const messagesEl = $('#messages');
     const msgInput = $('#msg-input');
 
-    // Auth Initialization
+    // Initialize Theme
+    setTheme(currentTheme);
+
+    function setTheme(name) {
+      currentTheme = name;
+      document.documentElement.setAttribute('data-theme', name);
+      localStorage.setItem('gb_theme', name);
+      document.querySelectorAll('.theme-card').forEach(card => {
+        card.classList.toggle('active', card.innerText.toLowerCase().includes(name));
+      });
+    }
+
+    // Initialize Auth
     if (currentUser) {
       $('#auth-modal').classList.add('hidden');
       registerActiveUser(currentUser, userPfp);
     }
 
-    $('#auth-continue-btn').onclick = () => handleAuth(false);
-    $('#auth-login-btn').onclick = () => handleAuth(true);
-
-    function handleAuth(isAccount) {
+    // Authentication Handlers (Password Login & Registration)
+    $('#auth-register-btn').onclick = () => {
       const name = $('#username-input').value.trim();
-      if (!name) return alert("Please enter a username.");
-      if (Array.from(activeUsers.keys()).includes(name.toLowerCase())) {
-        return alert("Username is currently taken by another online user.");
+      const pass = $('#password-input').value.trim();
+      if (!name || !pass) return alert("Please provide both a username and password to register.");
+      if (accounts[name.toLowerCase()]) return alert("Account already exists! Please click Sign In.");
+      
+      accounts[name.toLowerCase()] = pass;
+      localStorage.setItem('gb_accounts', JSON.stringify(accounts));
+      loginSuccess(name);
+      alert("Account created and signed in!");
+    };
+
+    $('#auth-login-btn').onclick = () => {
+      const name = $('#username-input').value.trim();
+      const pass = $('#password-input').value.trim();
+      if (!name || !pass) return alert("Please enter your username and password.");
+      
+      const storedPass = accounts[name.toLowerCase()];
+      if (!storedPass || storedPass !== pass) {
+        return alert("Invalid username or password.");
       }
+      loginSuccess(name);
+    };
+
+    $('#auth-guest-btn').onclick = () => {
+      const name = $('#username-input').value.trim() || ("Guest_" + Math.floor(Math.random() * 8999 + 1000));
+      loginSuccess(name);
+    };
+
+    function loginSuccess(name) {
       currentUser = name;
       localStorage.setItem('gb_user', currentUser);
       $('#auth-modal').classList.add('hidden');
       registerActiveUser(currentUser, userPfp);
+      renderChannelMessages();
     }
 
     function registerActiveUser(name, pfp) {
@@ -237,7 +352,7 @@
       $('#active-count').textContent = activeUsers.size;
     }
 
-    // Dropdown Menu Toggle
+    // Dropdown Navigation
     $('#menu-toggle').onclick = () => {
       const drop = $('#main-dropdown');
       drop.style.display = drop.style.display === 'flex' ? 'none' : 'flex';
@@ -248,29 +363,25 @@
       $('#auth-modal').classList.remove('hidden');
     };
 
+    // Edit Profile with Clear PFP Instructions
     $('#menu-edit-profile').onclick = () => {
       $('#main-dropdown').style.display = 'none';
-      const link = prompt("Enter valid image URL for profile picture:", userPfp);
-      if (link !== null) {
-        verifyImageUrl(link, (valid) => {
-          if (valid) {
-            userPfp = link;
-            localStorage.setItem('gb_pfp', userPfp);
-            alert("Profile picture updated!");
-          } else {
-            alert("Invalid image link. Please provide a direct image URL (jpg, png, webp).");
-          }
-        });
+      const promptText = "Enter direct image URL for your Profile Picture:\n\nTip: Right click any online image and click 'Copy image address/link'.";
+      const link = prompt(promptText, userPfp);
+      if (link !== null && link.trim() !== "") {
+        userPfp = link.trim();
+        localStorage.setItem('gb_pfp', userPfp);
+        registerActiveUser(currentUser, userPfp);
+        renderChannelMessages();
       }
     };
 
-    function verifyImageUrl(url, callback) {
-      const img = new Image();
-      img.onload = () => callback(true);
-      img.onerror = () => callback(false);
-      img.src = url;
-    }
+    $('#menu-customize').onclick = () => {
+      $('#main-dropdown').style.display = 'none';
+      $('#theme-modal').classList.remove('hidden');
+    };
 
+    // Admin Login Verification
     $('#menu-admin-login').onclick = () => {
       $('#main-dropdown').style.display = 'none';
       if (isAdmin) {
@@ -285,19 +396,35 @@
 
     $('#admin-cancel-btn').onclick = () => $('#admin-modal').classList.add('hidden');
 
-    $('#admin-submit-btn').onclick = async () => {
-      const pass = $('#admin-pass-input').value;
-      const hashed = await hashPassword(pass);
-      if (hashed === ADMIN_HASH) {
+    $('#admin-submit-btn').onclick = () => {
+      const pass = $('#admin-pass-input').value.trim();
+      if (pass === "smellypoop123") {
         isAdmin = true;
         $('#admin-modal').classList.add('hidden');
         $('#soundboard').style.display = 'flex';
-        $('#menu-admin-login').textContent = "Log Out Admin";
-        alert("Admin authenticated securely.");
+        $('#menu-admin-login').textContent = "Log Out Admin 👑";
+        alert("Admin authenticated successfully!");
       } else {
         alert("Incorrect admin password.");
       }
     };
+
+    // 3 Channel Tabs Switcher
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeTab = btn.dataset.target;
+        renderChannelMessages();
+      };
+    });
+
+    // Render Messages from History
+    function renderChannelMessages() {
+      messagesEl.innerHTML = '';
+      const msgs = chatHistory[activeTab] || [];
+      msgs.forEach(msg => appendBubble(msg, msg.user === currentUser));
+    }
 
     // Emoji Picker
     $('#emoji-toggle').onclick = () => {
@@ -313,31 +440,30 @@
       }
     };
 
-    // Character Counter
-    msgInput.oninput = () => {
-      updateCharCounter();
-      broadcastTyping();
-    };
+    msgInput.oninput = () => updateCharCounter();
 
     function updateCharCounter() {
       $('#char-counter').textContent = `${msgInput.value.length}/500`;
     }
 
-    // Messaging System
+    // Send Message & Save to History
     $('#chat-form').onsubmit = (e) => {
       e.preventDefault();
       const text = msgInput.value.trim();
       if (!text) return;
 
-      // Command Execution
-      if (text.startsWith('/') && isAdmin) {
-        handleAdminCommand(text);
-        msgInput.value = '';
-        updateCharCounter();
-        return;
-      }
+      const newMsg = {
+        user: currentUser,
+        pfp: userPfp,
+        text: text,
+        time: new Date()
+      };
 
-      appendBubble({ user: currentUser, pfp: userPfp, text, time: new Date() }, true);
+      if (!chatHistory[activeTab]) chatHistory[activeTab] = [];
+      chatHistory[activeTab].push(newMsg);
+      localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
+
+      appendBubble(newMsg, true);
       msgInput.value = '';
       updateCharCounter();
     };
@@ -349,6 +475,7 @@
       const img = document.createElement('img');
       img.className = 'bubble-avatar';
       img.src = msg.pfp || DEFAULT_PFP;
+      img.onerror = () => { img.src = DEFAULT_PFP; };
       img.onclick = () => openProfileModal(msg.user, msg.pfp);
 
       const content = document.createElement('div');
@@ -377,14 +504,13 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    // Profile & Moderation
     function openProfileModal(username, pfp) {
       selectedProfileUser = username;
       $('#profile-modal-name').textContent = username;
       $('#profile-modal-img').src = pfp || DEFAULT_PFP;
       $('#profile-modal').classList.remove('hidden');
 
-      if (isAdmin && username !== currentUser) {
+      if (isAdmin) {
         $('#admin-actions').classList.remove('hidden');
       } else {
         $('#admin-actions').classList.add('hidden');
@@ -392,44 +518,6 @@
     }
 
     $('#profile-close-btn').onclick = () => $('#profile-modal').classList.add('hidden');
-
-    $('#pm-start-btn').onclick = () => {
-      $('#profile-modal').classList.add('hidden');
-      if (selectedProfileUser === currentUser) return alert("Cannot PM yourself.");
-      createPrivateTab(selectedProfileUser);
-    };
-
-    function createPrivateTab(username) {
-      let tab = document.querySelector(`[data-target="${username}"]`);
-      if (!tab) {
-        tab = document.createElement('button');
-        tab.className = 'tab-btn';
-        tab.dataset.target = username;
-        tab.textContent = `@${username}`;
-        tab.onclick = () => switchTab(username);
-        $('#tab-bar').appendChild(tab);
-      }
-      switchTab(username);
-    }
-
-    function switchTab(target) {
-      activeTab = target;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.target === target));
-      messagesEl.innerHTML = '';
-    }
-
-    // Admin Commands & Actions
-    function handleAdminCommand(cmd) {
-      const parts = cmd.split(' ');
-      const action = parts[0].toLowerCase();
-      const arg = parts.slice(1).join(' ');
-
-      if (action === '/newtab' && arg) {
-        window.open(arg.startsWith('http') ? arg : 'https://' + arg, '_blank');
-      } else {
-        alert(`Executed admin command: ${action}`);
-      }
-    }
 
     $('#admin-jumpscare-btn').onclick = () => {
       triggerJumpscare();
@@ -444,29 +532,23 @@
 
     function playAdminSound(type) {
       if (!isAdmin) return;
-      alert(`Playing admin soundboard audio: ${type}`);
+      alert(`Admin Audio Played: ${type}`);
     }
 
-    // Active Users List Modal
     $('#online-btn').onclick = () => {
       const list = $('#users-list');
       list.innerHTML = '';
       activeUsers.forEach(u => {
         const item = document.createElement('div');
-        item.style.cssText = "padding:6px 0; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;";
-        item.innerHTML = `<img src="${u.pfp}" style="width:24px;height:24px;border-radius:50%;"> <span>${u.name}</span>`;
+        item.style.cssText = "padding:8px 0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px;";
+        item.innerHTML = `<img src="${u.pfp}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;"> <span>${u.name}</span>`;
         list.appendChild(item);
       });
       $('#users-modal').classList.remove('hidden');
     };
 
-    // Typing Status Simulation
-    let typingTimeout;
-    function broadcastTyping() {
-      $('#typing-indicator').textContent = `${currentUser} is typing...`;
-      clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => { $('#typing-indicator').textContent = ''; }, 2000);
-    }
+    // Load initial messages
+    renderChannelMessages();
   </script>
 </body>
 </html>
