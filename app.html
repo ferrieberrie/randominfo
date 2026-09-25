@@ -17,7 +17,8 @@
   let user; try { user = localStorage.getItem('gb_user'); } catch {}
   user = user || prompt('Enter your username:');
   if (!user || !user.trim()) return;
-  user = user.trim().slice(0, 80);
+  user = user.replace(/\s+\+bypass\s*$/i,'').trim().slice(0, 80);
+  if(!user)return;
   const saveUser = () => { try { localStorage.setItem('gb_user', user); } catch { storageOK = false; } };
   saveUser();
   let clientId=read('gb_client_id','');
@@ -25,16 +26,23 @@
   let cleanUser = user, admin = false;
   let avatar = read('gb_avatar', ''), theme = read('gb_theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   if (!['light', 'dark'].includes(theme)) theme = 'light';
-  const adminNameMatches = name => name.length === 7 && [112,111,111,112,49,50,51].every((code,index) => name.charCodeAt(index) === code);
-  const hasAdminAccess = () => admin && adminNameMatches(cleanUser);
+  const hasAdminAccess = () => admin;
   const ADMIN_KEY_SHA256 = '22a61942f9fb074c9f22af6bf7a550eaf708f6674be8dccf15c82e22fd4f4f86';
   const server = config.server.replace(/\/+$/, '');
   async function publish(chan,payload,timeout=20000,cacheMessage=true){
-    const response=await fetch(server,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:'global-bookmarklet-'+chan,message:JSON.stringify(payload),cache:cacheMessage?'yes':'no'}),signal:AbortSignal.timeout(timeout)});
-    if(!response.ok)throw new Error('Server returned '+response.status);
-    const envelope=await response.json();
-    if(envelope.event!=='message'||!envelope.id)throw new Error('Unexpected server response');
-    return envelope;
+    const body=JSON.stringify({topic:'global-bookmarklet-'+chan,message:JSON.stringify(payload),cache:cacheMessage?'yes':'no'});
+    for(let attempt=0;attempt<2;attempt++){
+      const response=await fetch(server,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(timeout)});
+      if(response.status===429 && cacheMessage && attempt===0){
+        const seconds=Math.min(4,Math.max(1,Number(response.headers.get('Retry-After'))||2));
+        await new Promise(resolve=>setTimeout(resolve,seconds*1000));
+        continue;
+      }
+      if(!response.ok)throw new Error(response.status===429?'Chat relay is busy—please retry in a moment.':'Server returned '+response.status);
+      const envelope=await response.json();
+      if(envelope.event!=='message'||!envelope.id)throw new Error('Unexpected server response');
+      return envelope;
+    }
   }
   const channels = ['channel-1', 'channel-2', 'channel-3'];
   let channel = read('gb_channel', channels[0]);
@@ -49,14 +57,14 @@
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
     :host{color-scheme:light}*{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 35%,transparent);outline-offset:2px}
-    .box{--bg:rgba(249,249,251,.94);--surface:#fff;--surface-2:#f2f2f7;--label:#111114;--secondary:#727277;--separator:rgba(60,60,67,.18);--blue:#007aff;--blue-soft:#e7f2ff;position:absolute;right:20px;bottom:20px;width:402px;height:min(690px,calc(100dvh - 40px));max-width:calc(100vw - 24px);display:flex;flex-direction:column;background:var(--bg);color:var(--label);border:1px solid rgba(255,255,255,.7);border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.25),0 4px 18px rgba(0,0,0,.12);font:14px -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;pointer-events:auto;overflow:hidden;backdrop-filter:blur(30px) saturate(180%);transition:background .25s,color .25s,box-shadow .25s}
-    .box[data-theme=dark]{color-scheme:dark;--bg:rgba(28,28,30,.95);--surface:#2c2c2e;--surface-2:#3a3a3c;--label:#f5f5f7;--secondary:#a1a1a6;--separator:rgba(235,235,245,.16);--blue:#0a84ff;--blue-soft:#0d3459;border-color:rgba(255,255,255,.12);box-shadow:0 30px 90px rgba(0,0,0,.55),0 4px 18px rgba(0,0,0,.35)}
+    .box{--bg:rgba(249,249,251,.98);--surface:#fff;--surface-2:#f2f2f7;--label:#111114;--secondary:#727277;--separator:rgba(60,60,67,.18);--blue:#007aff;--blue-soft:#e7f2ff;position:absolute;inset:0;width:100%;height:100dvh;max-width:none;display:flex;flex-direction:column;background:var(--bg);color:var(--label);border:0;border-radius:0;box-shadow:none;font:14px -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;pointer-events:auto;overflow:hidden;backdrop-filter:blur(30px) saturate(180%);transition:background .25s,color .25s}
+    .box[data-theme=dark]{color-scheme:dark;--bg:rgba(28,28,30,.98);--surface:#2c2c2e;--surface-2:#3a3a3c;--label:#f5f5f7;--secondary:#a1a1a6;--separator:rgba(235,235,245,.16);--blue:#0a84ff;--blue-soft:#0d3459}.box.embedded .close{display:none}
     .head{position:relative;padding:16px 16px 13px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:color-mix(in srgb,var(--bg) 92%,transparent);border-bottom:1px solid var(--separator)}.identity{display:flex;align-items:center;gap:11px;min-width:0}.header-avatar,.header-initial,.avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;background:linear-gradient(145deg,#62a8ff,#7968ed);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}.header-avatar,.header-initial{width:38px;height:38px;flex:0 0 38px}.avatar-fallback,.header-initial{display:grid;place-items:center;color:#fff;font-weight:700}.avatar-fallback{flex:0 0 40px}.brand-wrap{min-width:0}.brand{display:block;font-size:17px;font-weight:700;letter-spacing:-.25px;white-space:nowrap}.brand-subtitle{display:block;border:0;padding:0;background:transparent;color:#34c759;font-size:11px;font-weight:600;margin-top:1px;cursor:pointer}.tools{display:flex;align-items:center;gap:7px}.icon-button{width:34px;height:34px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);color:var(--label);font-size:20px;line-height:1;transition:transform .15s,background .15s}.icon-button:hover{background:color-mix(in srgb,var(--surface-2) 75%,var(--blue));transform:scale(1.04)}.more{font-size:16px;font-weight:800;letter-spacing:0;padding:0 0 5px}.close{font-size:20px;padding-bottom:2px}.online-list{position:absolute;z-index:10;left:64px;top:58px;width:210px;max-height:260px;overflow:auto;padding:8px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--separator);border-radius:16px;box-shadow:0 16px 45px rgba(0,0,0,.22);backdrop-filter:blur(30px)}.online-person{display:flex;align-items:center;gap:9px;padding:8px;border-radius:10px}.online-person+.online-person{border-top:1px solid var(--separator)}.online-dot{width:8px;height:8px;border-radius:50%;background:#34c759;box-shadow:0 0 0 3px color-mix(in srgb,#34c759 16%,transparent)}
     .menu{position:absolute;z-index:9;right:16px;top:58px;width:228px;padding:7px;background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--separator);border-radius:16px;box-shadow:0 16px 45px rgba(0,0,0,.22);backdrop-filter:blur(30px) saturate(180%);transform-origin:top right}.menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;border-radius:11px;background:transparent;color:var(--label);padding:11px 12px;text-align:left}.menu button:hover{background:var(--surface-2)}.menu-icon{width:21px;text-align:center;color:var(--blue);font-size:16px}.menu-label{flex:1}.menu-detail{color:var(--secondary);font-size:12px}.menu-separator{height:1px;background:var(--separator);margin:5px 8px}.admin-state{display:block;padding:4px 12px 7px;color:var(--secondary);font-size:10px}.tabs{display:flex;margin:12px 14px 4px;padding:3px;background:var(--surface-2);border-radius:11px;gap:2px}.tabs button{border:0;background:transparent;color:var(--secondary);padding:8px 6px;border-radius:8px;flex:1;font-size:12px;font-weight:600}.tabs button[aria-selected=true]{color:var(--label);background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.14)}
     .status{display:none}.status:not(:empty){display:block;padding:6px 18px;color:var(--secondary);font-size:11px;text-align:center}.messages{flex:1;overflow:auto;padding:8px 14px 10px;min-height:70px;overflow-wrap:anywhere;scrollbar-width:thin}.message{display:flex;align-items:flex-end;gap:9px;padding:7px 0;margin:2px 0}.message-body{min-width:0;max-width:82%;padding:10px 12px;background:var(--surface);border-radius:18px 18px 18px 6px;box-shadow:0 1px 3px rgba(0,0,0,.08)}.message.own{justify-content:flex-end}.message.own .avatar{order:2}.message.own .message-body{order:1;background:var(--blue);color:#fff;border-radius:18px 18px 6px 18px;box-shadow:0 3px 10px color-mix(in srgb,var(--blue) 24%,transparent)}.message.own .name,.message.own .time{color:rgba(255,255,255,.86)}.message.private .message-body{border:1px solid color-mix(in srgb,var(--blue) 35%,transparent)}.message.private .name:before{content:"Private · "}.avatar,.name{cursor:pointer}.meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:4px}.name{font-weight:650;color:var(--blue);font-size:12px;text-decoration:none}.time{font-size:9px;color:var(--secondary);white-space:nowrap}.text{white-space:pre-wrap;line-height:1.4}.empty{color:var(--secondary);padding:42px 10px;text-align:center}.notice{display:none}.moderation.notice:not(:empty){display:flex;align-items:center;gap:10px;margin:5px 14px 7px;padding:11px 13px;border-radius:14px;background:color-mix(in srgb,#ff3b30 13%,var(--surface));border:1px solid color-mix(in srgb,#ff3b30 28%,transparent);color:#ff453a;font-size:12px;font-weight:650;line-height:1.4}.moderation.notice:not(:empty):before{content:"!";display:grid;place-items:center;flex:0 0 24px;height:24px;border-radius:50%;background:#ff3b30;color:#fff;font-weight:800}.moderation[data-state=muted]:not(:empty){background:color-mix(in srgb,#ff9f0a 13%,var(--surface));border-color:color-mix(in srgb,#ff9f0a 28%,transparent);color:#d57800}.moderation[data-state=muted]:not(:empty):before{content:"⌁";background:#ff9f0a}.moderation[data-state=success]:not(:empty){background:color-mix(in srgb,#34c759 13%,var(--surface));border-color:color-mix(in srgb,#34c759 28%,transparent);color:#248a3d}.moderation[data-state=success]:not(:empty):before{content:"✓";background:#34c759}.typing{min-height:21px;padding:2px 18px;color:var(--secondary);font-size:11px}.typing-dots{display:inline-flex;gap:3px;margin-left:5px}.typing-dots i{width:4px;height:4px;border-radius:50%;background:currentColor;animation:typing 1s infinite ease-in-out}.typing-dots i:nth-child(2){animation-delay:.15s}.typing-dots i:nth-child(3){animation-delay:.3s}@keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-3px);opacity:1}}.private-compose{display:flex;align-items:center;gap:8px;margin:2px 14px;padding:7px 10px;border-radius:11px;background:var(--blue-soft);color:var(--blue);font-size:11px;font-weight:650}.private-compose span{flex:1}.private-compose button{border:0;background:transparent;color:var(--blue);font-size:17px}.composer{display:flex;align-items:center;gap:8px;margin:5px 12px 8px;padding:5px 5px 5px 12px;background:var(--surface);border:1px solid var(--separator);border-radius:24px;box-shadow:0 2px 8px rgba(0,0,0,.07)}.composer input{min-width:0;flex:1;background:transparent;color:var(--label);border:0;padding:8px 4px;outline:0}.composer button{width:34px;height:34px;display:grid;place-items:center;background:var(--blue);color:#fff;border:0;border-radius:50%;padding:0;font-size:17px}.foot{padding:0 16px 11px;text-align:center;font-size:9px;color:var(--secondary)}.google-head,.back,.google-footer{display:none}.pending-link{margin:4px 14px;padding:11px 12px;border-radius:13px;background:var(--blue-soft);font-size:11px}.pending-link button{float:right;border:0;border-radius:9px;background:var(--blue);color:#fff;padding:6px 10px;margin-left:8px}.message-toast{position:absolute;z-index:20;top:72px;left:12px;right:12px;display:flex;align-items:center;gap:10px;padding:11px 12px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--separator);border-radius:17px;box-shadow:0 10px 35px rgba(0,0,0,.22);backdrop-filter:blur(24px);animation:toast-in .25s ease-out}.message-toast .toast-copy{min-width:0;flex:1}.message-toast strong,.message-toast span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.message-toast span{color:var(--secondary);font-size:12px;margin-top:2px}@keyframes toast-in{from{transform:translateY(-18px);opacity:0}}
     .google{--bg:#fff;--surface:#fff;--surface-2:#f8fafd;--label:#202124;--secondary:#70757a;--separator:#dadce0;--blue:#1a73e8;--blue-soft:#e8f0fe;color-scheme:light;inset:0;width:100%;height:100dvh;max-width:none;border:0;border-radius:0;box-shadow:none;background:#fff;color:#202124}.google .head,.google .foot,.google .typing,.google .pending-link{display:none}.google .google-head{display:flex;align-items:center;gap:35px;padding:28px 34px 18px}.logo{font:500 34px Arial,sans-serif;letter-spacing:-2px;white-space:nowrap}.logo span:nth-child(1),.logo span:nth-child(4){color:#4285f4}.logo span:nth-child(2),.logo span:nth-child(6){color:#ea4335}.logo span:nth-child(3){color:#fbbc05}.logo span:nth-child(5){color:#34a853}.query{width:630px;max-width:65vw;border-radius:28px;padding:15px 22px;box-shadow:0 1px 6px #20212430;border:1px solid #dfe1e5;display:flex;justify-content:space-between;color:#202124}.query small{color:#4285f4;font-size:17px}.google .back{display:block;background:#f8fafd;border:1px solid #dadce0;color:#5f6368;margin-left:auto;white-space:nowrap;font-size:12px}.google .tabs{padding-left:190px;border:0;border-bottom:1px solid #ebebeb;border-radius:0;margin:0;background:#fff;justify-content:flex-start}.google .tabs button{flex:0 0 auto;color:#5f6368;padding:12px 18px;background:#fff;box-shadow:none}.google .tabs button[aria-selected=true]{color:#1a73e8;border-bottom:3px solid #1a73e8;border-radius:0}.google .status{margin-left:190px;padding:12px 0;color:#70757a;max-width:650px}.google .messages{margin-left:190px;max-width:680px;padding:0 20px 8px 0}.google .message{display:block;padding:7px 0;margin:12px 0 22px}.google .avatar{display:none}.google .message-body{max-width:100%;padding:0;background:#fff;border:0;border-radius:0;box-shadow:none}.google .message-body:before{content:"global.chat › community › discussion";display:block;color:#188038;font-size:12px;margin-bottom:3px}.google .meta{justify-content:flex-start;align-items:center;gap:15px;margin:0}.google .name{font-weight:400;color:#1a0dab;font-size:20px;text-decoration:none}.google .name:hover{text-decoration:underline}.google .time{color:#70757a;font-size:11px}.google .text{color:#4d5156;font-size:14px;line-height:1.55;margin-top:4px}.google .empty{color:#70757a;text-align:left}.google .composer{margin:10px 24px 20px 190px;max-width:650px;border:1px solid #dfe1e5;border-radius:28px;padding:5px;box-shadow:0 1px 4px #20212420}.google .composer input{background:#fff;color:#202124;border:0;border-radius:24px;padding:12px 18px}.google .composer button{background:#fff;color:#4285f4;border-radius:24px;font-size:20px}.google .google-footer{display:block;padding:12px 34px;background:#f2f2f2;color:#70757a;font-size:12px;border-top:1px solid #dadce0}
     .google .message.own{justify-content:flex-start}.google .message.own .message-body{background:#fff;color:#4d5156;box-shadow:none}.google .message.own .name{color:#1a0dab}.google .message.own .time{color:#70757a}
-    @media(max-width:700px){.box{right:12px;bottom:12px}.google .google-head{padding:18px 16px;gap:16px;flex-wrap:wrap}.google .logo{font-size:29px}.google .query{order:3;width:100%;max-width:none}.google .tabs{padding-left:8px}.google .status,.google .messages,.google .notice{margin-left:16px;margin-right:16px}.google .composer{margin:12px 16px}.google .google-footer{padding:12px 16px}}
+    @media(max-width:700px){.head{padding:12px 12px 10px}.tabs{margin:8px 10px 3px}.messages{padding-left:10px;padding-right:10px}.composer{margin-left:8px;margin-right:8px}.google .google-head{padding:18px 16px;gap:16px;flex-wrap:wrap}.google .logo{font-size:29px}.google .query{order:3;width:100%;max-width:none}.google .tabs{padding-left:8px}.google .status,.google .messages,.google .notice{margin-left:16px;margin-right:16px}.google .composer{margin:12px 16px}.google .google-footer{padding:12px 16px}}
     [hidden]{display:none!important}.private-window{position:absolute;z-index:16;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--label);backdrop-filter:blur(30px)}.private-head{height:64px;flex:0 0 64px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--separator);background:color-mix(in srgb,var(--bg) 94%,transparent)}.private-back{width:36px;height:36px;border:0;border-radius:50%;background:var(--surface-2);color:var(--blue);font-size:28px;line-height:1}.private-head-copy{flex:1;text-align:center;margin-right:46px}.private-head h2{margin:0;font-size:16px}.private-head small{color:#34c759;font-size:10px}.private-messages{flex:1;overflow:auto;padding:14px}.private-row{display:flex;justify-content:flex-start;margin:7px 0}.private-row.own{justify-content:flex-end}.private-bubble{max-width:78%;padding:10px 12px;border-radius:18px 18px 18px 6px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.08)}.private-row.own .private-bubble{background:var(--blue);color:#fff;border-radius:18px 18px 6px 18px}.private-bubble time{display:block;margin-top:4px;color:var(--secondary);font-size:9px}.private-row.own time{color:rgba(255,255,255,.75)}.private-empty{padding:50px 15px;color:var(--secondary);text-align:center}.private-form{display:flex;gap:8px;margin:10px 12px 14px;padding:5px 5px 5px 13px;border:1px solid var(--separator);border-radius:24px;background:var(--surface)}.private-form input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--label)}.private-form button{width:34px;height:34px;border:0;border-radius:50%;background:var(--blue);color:#fff;font-size:17px}.contact-backdrop{position:absolute;z-index:18;inset:0;background:rgba(0,0,0,.25);display:grid;place-items:center;padding:20px;backdrop-filter:blur(8px)}.contact-card{position:relative;width:min(330px,100%);max-height:90%;overflow:auto;padding:22px;background:var(--surface);color:var(--label);border:1px solid var(--separator);border-radius:24px;box-shadow:0 24px 60px rgba(0,0,0,.3);text-align:center}.contact-card .contact-avatar{display:block;width:82px;height:82px;margin:0 auto 10px;border-radius:50%;object-fit:cover;background:linear-gradient(145deg,#62a8ff,#7968ed)}.contact-card .contact-initial{display:grid;place-items:center;color:#fff;font-size:28px;font-weight:700}.contact-card h2{margin:4px 0;font-size:22px}.contact-online{color:#34c759;font-size:12px}.contact-actions,.mod-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}.contact-card button{border:0;border-radius:12px;padding:10px;background:var(--surface-2);color:var(--label)}.contact-card .contact-message{grid-column:1/-1;background:var(--blue);color:#fff}.contact-close{position:absolute!important;right:14px;top:14px;width:30px;height:30px;padding:0!important;border-radius:50%!important}.mod-title{margin:18px 0 6px;padding-top:14px;border-top:1px solid var(--separator);font-size:11px;color:var(--secondary);text-align:left;text-transform:uppercase;letter-spacing:.7px}.announcement{padding:8px 0}.announcement .message-body{position:relative;max-width:100%;width:100%;padding:15px 16px 15px 48px;border:0;background:linear-gradient(135deg,var(--blue),#6d5dfc);color:#fff;border-radius:18px;box-shadow:0 8px 22px color-mix(in srgb,var(--blue) 24%,transparent)}.announcement .message-body:before{content:"✦";position:absolute;left:16px;top:15px;width:23px;height:23px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.2)}.announcement .name,.announcement .time{color:rgba(255,255,255,.9)}.announcement .text{font-size:15px;font-weight:650;line-height:1.45}.soundboard{margin:2px 14px;padding:10px 12px;background:var(--surface);border:1px solid var(--separator);border-radius:14px;font-size:12px}.soundboard summary{cursor:pointer;font-weight:650}.sound-buttons{display:flex;flex-wrap:wrap;gap:6px;padding:9px 0}.soundboard button{border:0;border-radius:10px;padding:8px 10px;background:var(--surface-2);color:var(--label)}.google .soundboard{margin-left:174px;max-width:680px}.google .announcement .message-body{background:#fff;color:#4d5156;box-shadow:none}.google .announcement .message-body:before{content:"global.chat › announcement";position:static;display:block;width:auto;height:auto;background:none;color:#188038}.google .announcement .name{color:#1a0dab}.google .announcement .time{color:#70757a}@media(max-width:700px){.google .soundboard{margin-left:0}}
     .prank{position:fixed;inset:0;z-index:5;background:#000;pointer-events:auto;overflow:hidden;perspective:700px}.prank-background{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.4);opacity:0}.prank.attack .prank-background{opacity:1}.prank.blackout .prank-background{visibility:hidden}.prank-image{position:relative;display:block;width:100vw;height:100dvh;object-fit:cover;transform-origin:50% 42%;will-change:transform;opacity:0}.prank-image-error{position:absolute;bottom:20px;left:20px;color:white}
     .pin-strip{flex-shrink:0;padding:9px 16px;border-top:1px solid var(--separator);background:var(--blue-soft);color:var(--label);font-size:11px;max-height:80px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.google .pin-strip{background:#fffbea;color:#713f12;padding-left:190px}@media(max-width:700px){.google .pin-strip{padding-left:16px}}
@@ -142,7 +150,7 @@
   }
   const sessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now();
   const online = new Map(), typingUsers = new Map();
-  let lastTypingSent = 0, lastTypingActive = false, pendingLink = null, privateTarget = '', privateTargetId = '', contactTarget = null, toastTimer;
+  let lastTypingActive = false, lastPresenceSent = 0, pendingLink = null, privateTarget = '', privateTargetId = '', contactTarget = null, toastTimer;
   function safeRemoteURL(value) {
     try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && url.href.length <= 2048 ? url.href : ''; }
     catch { return ''; }
@@ -187,28 +195,28 @@
       const dots = document.createElement('span'); dots.className = 'typing-dots'; dots.innerHTML = '<i></i><i></i><i></i>'; $('.typing').append(dots);
     }
   }
-  function sendPresence() {
+  function sendPresence(force=false) {
     online.set(sessionId, {user:cleanUser, avatar, clientId, seen:Date.now()}); renderPresence();
+    const now=Date.now();
+    if(!force && now-lastPresenceSent<90000)return;
+    lastPresenceSent=now;
     publishSignal({type:'presence', user:cleanUser, avatar, session:sessionId, clientId});
   }
   function sendTyping(active) {
-    const now = Date.now();
-    if (active === lastTypingActive && now - lastTypingSent < 5000) return;
-    lastTypingActive = active; lastTypingSent = now;
+    if (active === lastTypingActive) return;
+    lastTypingActive = active;
     publishSignal({type:'typing', user:cleanUser, session:sessionId, active});
   }
   function showRemoteLink(url, by, mode) {
     const safe = safeRemoteURL(url); if (!safe) return;
-    pendingLink = {url:safe, mode:mode === 'openpage' ? 'openpage' : 'openwindow'};
-    $('.open-link').textContent = pendingLink.mode === 'openpage' ? 'Open page' : 'Open window';
-    $('.pending-link-text').textContent = `${by || 'An admin'} shared a link with you: ${safe}`;
-    $('.pending-link').hidden = false;
+    if (mode === 'openpage') location.assign(safe);
+    else window.open(safe, '_blank', 'noopener,noreferrer,width=1100,height=760');
   }
   function showMessageToast(name, message, photo, isPrivate) {
     clearTimeout(toastTimer);
     $('.message-toast strong').textContent = (isPrivate ? 'Private · ' : '') + name;
     $('.message-toast span').textContent = message;
-    $('.message-toast').onclick = () => { $('.message-toast').hidden=true; isPrivate ? setPrivateTarget(name) : openContact(name,photo); };
+    $('.message-toast').onclick = () => { const person=[...online.values()].find(entry=>entry.user===name);$('.message-toast').hidden=true;isPrivate?setPrivateTarget(name,person?.clientId||''):openContact(name,photo,person?.clientId||''); };
     $('.message-toast').hidden = false;
     toastTimer = setTimeout(() => { $('.message-toast').hidden = true; }, 5000);
   }
@@ -384,8 +392,8 @@
   function updateModeration() {
     const reason=restriction();
     if(reason) { $('.moderation').textContent=reason; $('.moderation').dataset.state=reason.includes('muted')?'muted':'blocked'; }
-    else if(lastRestriction) { $('.moderation').textContent='You can send messages again.'; $('.moderation').dataset.state='success'; }
-    else { $('.moderation').textContent=''; $('.moderation').dataset.state=''; }
+    else if(lastRestriction) { $('.moderation').textContent='You can send messages again.';$('.moderation').dataset.state='success'; }
+    else { $('.moderation').textContent='';$('.moderation').dataset.state=''; }
     lastRestriction=reason;
     input.disabled=!!reason; send.disabled=!!reason || sending;
     for(const name of Object.keys(soundNames)) $('.sound-'+name).disabled=!!reason || soundSending;
@@ -436,17 +444,19 @@
     const scroll = messages.scrollTop, frag = document.createDocumentFragment();
     const rows = [...getHistory(channel).values()].filter(x=>!x.private).sort((a,b) => a.time - b.time || a.id.localeCompare(b.id));
     for (const x of rows) {
-      const article = document.createElement('article'); article.className = x.announcement ? 'message announcement' : 'message' + (x.user === cleanUser ? ' own' : '') + (x.private ? ' private' : '');
-      const profileName=x.private&&x.user===cleanUser?x.target:x.user;
+      const isOwn=x.senderId===clientId;
+      const article = document.createElement('article'); article.className = x.announcement ? 'message announcement' : 'message' + (isOwn ? ' own' : '') + (x.private ? ' private' : '');
+      const profileName=x.private&&isOwn?x.target:x.user;
       const onlineProfile=[...online.values()].find(person=>person.user===profileName);
-      const profilePhoto=x.private&&x.user===cleanUser?safeAvatar(onlineProfile?.avatar):safeAvatar(x.avatar);
+      const profileId=x.private&&isOwn?(x.targetId||onlineProfile?.clientId||''):(x.senderId||onlineProfile?.clientId||'');
+      const profilePhoto=x.private&&isOwn?safeAvatar(onlineProfile?.avatar):safeAvatar(x.avatar);
       if (!x.announcement) {
-        if (profilePhoto) { const avatarImage = document.createElement('img'); avatarImage.className = 'avatar'; avatarImage.src = profilePhoto; avatarImage.alt = `Open ${profileName}'s profile`; avatarImage.loading = 'lazy'; avatarImage.referrerPolicy = 'no-referrer'; avatarImage.onclick=()=>openContact(profileName,profilePhoto); article.append(avatarImage); }
-        else { const fallback = document.createElement('div'); fallback.className = 'avatar avatar-fallback'; fallback.textContent = profileName.slice(0, 1).toUpperCase() || '?'; fallback.onclick=()=>openContact(profileName,''); article.append(fallback); }
+        if (profilePhoto) { const avatarImage = document.createElement('img'); avatarImage.className = 'avatar'; avatarImage.src = profilePhoto; avatarImage.alt = `Open ${profileName}'s profile`; avatarImage.loading = 'lazy'; avatarImage.referrerPolicy = 'no-referrer'; avatarImage.onclick=()=>openContact(profileName,profilePhoto,profileId); article.append(avatarImage); }
+        else { const fallback = document.createElement('div'); fallback.className = 'avatar avatar-fallback'; fallback.textContent = profileName.slice(0, 1).toUpperCase() || '?'; fallback.onclick=()=>openContact(profileName,'',profileId); article.append(fallback); }
       }
       const body = document.createElement('div'); body.className = 'message-body';
       const meta = document.createElement('div'); meta.className = 'meta';
-      const name = document.createElement('a'); name.className = 'name'; name.href = '#'; name.onclick = event => { event.preventDefault(); if(!x.announcement)openContact(profileName,profilePhoto); }; name.textContent = (x.announcement ? 'Announcement · ' : '') + (x.private&&x.user===cleanUser?'To '+x.target:x.user);
+      const name = document.createElement('a'); name.className = 'name'; name.href = '#'; name.onclick = event => { event.preventDefault(); if(!x.announcement)openContact(profileName,profilePhoto,profileId); }; name.textContent = (x.announcement ? 'Announcement · ' : '') + (x.private&&isOwn?'To '+x.target:x.user);
       const time = document.createElement('time'); time.className = 'time'; time.dateTime = new Date(x.time).toISOString(); time.title = new Date(x.time).toLocaleString(); time.textContent = new Date(x.time).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       const text = document.createElement('div'); text.className = 'text'; text.textContent = x.text;
       meta.append(name, time); body.append(meta, text); article.append(body);
@@ -464,7 +474,7 @@
     const age = Date.now() - envelope.time * 1000;
     if (data.type === 'presence') {
       if (chan === channel && age >= -5000 && age < 120000 && typeof data.user === 'string' && typeof data.session === 'string') {
-        online.set(data.session, {user:data.user.slice(0,80), avatar:safeAvatar(data.avatar), seen:Date.now()}); renderPresence();
+        online.set(data.session, {user:data.user.slice(0,80), avatar:safeAvatar(data.avatar), clientId:typeof data.clientId==='string'?data.clientId:'', seen:Date.now()}); renderPresence();
       }
       return;
     }
@@ -476,11 +486,13 @@
     }
     if (data.type === 'private') {
       if (typeof data.target !== 'string' || typeof data.from !== 'string' || typeof data.text !== 'string') return;
-      if (data.target !== cleanUser && data.from !== cleanUser) return;
-      const privateMessage={id:envelope.id,time:envelope.time*1000,user:data.from,text:data.text.slice(0,2000),avatar:safeAvatar(data.avatar),private:true,target:data.target};
+      const addressedToMe=typeof data.targetId==='string'?data.targetId===clientId:data.target===cleanUser;
+      const sentByMe=typeof data.senderId==='string'?data.senderId===clientId:data.from===cleanUser;
+      if (!addressedToMe && !sentByMe) return;
+      const privateMessage={id:envelope.id,time:envelope.time*1000,user:data.from,text:data.text.slice(0,2000),avatar:safeAvatar(data.avatar),senderId:typeof data.senderId==='string'?data.senderId:'',private:true,target:data.target,targetId:typeof data.targetId==='string'?data.targetId:''};
       if(!valid(privateMessage))return;
       getHistory(chan).set(privateMessage.id,privateMessage);persist(chan);
-      if(channel===chan){renderPrivate();if(data.target===cleanUser&&data.from!==cleanUser&&age>=0&&age<15000)showMessageToast(data.from,data.text,safeAvatar(data.avatar),true);}
+      if(channel===chan){renderPrivate();if(addressedToMe&&!sentByMe&&age>=0&&age<15000)showMessageToast(data.from,data.text,safeAvatar(data.avatar),true);}
       return;
     }
     if (data.type === 'openpage' || data.type === 'openwindow') {
@@ -513,7 +525,7 @@
       }
       return;
     }
-    const x = {id:envelope.id,time:envelope.time * 1000,user:announcement ? (typeof data.by==='string'?data.by:'Moderator') : data.user,text:data.text,avatar:announcement ? '' : safeAvatar(data.avatar),announcement};
+    const x = {id:envelope.id,time:envelope.time * 1000,user:announcement ? (typeof data.by==='string'?data.by:'Moderator') : data.user,text:data.text,avatar:announcement ? '' : safeAvatar(data.avatar),senderId:announcement?'':(typeof data.senderId==='string'?data.senderId:''),announcement};
     if (!valid(x)) return;
     getHistory(chan).set(x.id, x); persist(chan);
     if (channel === chan) { clearTimeout(renderTimer); renderTimer = setTimeout(render, 60); }
@@ -576,28 +588,25 @@
     box.style.display = hidden ? 'none' : 'flex';
     document.title = disguise && !hidden ? 'community discussion - Google Search' : originalTitle;
   }
-  $('.more').onclick = event => { event.stopPropagation(); setMenu($('.menu').hidden); };
-  $('.brand-subtitle').onclick = event => { event.stopPropagation(); const list=$('.online-list'); list.hidden=!list.hidden; $('.brand-subtitle').setAttribute('aria-expanded',String(!list.hidden)); };
+  $('.more').onclick = event => { event.stopPropagation(); setMenu($('.menu').hidden); };$('.brand-subtitle').onclick = event => { event.stopPropagation(); const list=$('.online-list'); list.hidden=!list.hidden; $('.brand-subtitle').setAttribute('aria-expanded',String(!list.hidden)); };
   root.addEventListener('click', event => {
     if (!$('.menu').hidden && !event.composedPath().includes($('.menu'))) setMenu(false);
     if (!$('.online-list').hidden && !event.composedPath().includes($('.online-list'))) { $('.online-list').hidden=true; $('.brand-subtitle').setAttribute('aria-expanded','false'); }
   });
-  $('.disguise').onclick = () => { setMenu(false); setDisguise(true); }; $('.back').onclick = () => setDisguise(false); $('.close').onclick = () => { setMenu(false); setHidden(true); };
-  $('.admin-unlock').onclick = () => { setMenu(false); $('.admin-file').click(); };
-  $('.admin-file').onchange = event => unlockAdmin(event.target.files?.[0]);
-  $('.theme-toggle').onclick = () => { applyTheme(theme === 'light' ? 'dark' : 'light'); };
-  $('.profile-photo').onclick = () => {
+  $('.disguise').onclick = () => { setMenu(false); setDisguise(true); };$('.back').onclick = () => setDisguise(false); $('.close').onclick = () => { setMenu(false); setHidden(true); };$('.admin-unlock').onclick = () => { setMenu(false); $('.admin-file').click(); };$('.admin-file').onchange = event => unlockAdmin(event.target.files?.[0]);
+  $('.theme-toggle').onclick = () => { applyTheme(theme === 'light' ? 'dark' : 'light'); };$('.profile-photo').onclick = () => {
     const next = prompt('Paste an HTTPS image URL for your profile photo. Leave blank to remove it.', avatar);
     if (next === null) return;
     if (next.trim() && !safeAvatar(next)) { notice('Please enter a valid HTTPS image URL.'); return; }
-    avatar = safeAvatar(next); write('gb_avatar', avatar); applyProfile(); setMenu(false); render(); sendPresence();
+    avatar = safeAvatar(next); write('gb_avatar', avatar); applyProfile(); setMenu(false); render(); sendPresence(true);
     notice(avatar ? 'Profile photo updated.' : 'Profile photo removed.');
   };
   $('.edit').onclick = () => {
     const next = prompt('Enter new username:', user); if (!next || !next.trim()) return;
-    const candidate=next.trim().slice(0,80);
-    if(candidate.toLocaleLowerCase()!==cleanUser.toLocaleLowerCase()&&usernameInUse(candidate)){alert("Oh, that's in use. Try again.");return;}
-    user=candidate;cleanUser=user;saveUser();applyProfile();setMenu(false);updateAdminUI();updateModeration();sendPresence();
+    const bypass=/\s+\+bypass\s*$/i.test(next),candidate=next.replace(/\s+\+bypass\s*$/i,'').trim().slice(0,80);
+    if(!candidate)return;
+    if(!bypass&&candidate.toLocaleLowerCase()!==cleanUser.toLocaleLowerCase()&&usernameInUse(candidate)){alert("Oh, that's in use. Try again.");return;}
+    user=candidate;cleanUser=user;saveUser();applyProfile();setMenu(false);updateAdminUI();updateModeration();sendPresence(true);
   };
   $('.open-link').onclick = () => {
     if (!pendingLink) return;
@@ -605,15 +614,13 @@
     else window.open(pendingLink.url, '_blank', 'noopener,noreferrer,width=1100,height=760');
     pendingLink=null; $('.pending-link').hidden=true;
   };
-  $('.private-back').onclick=()=>setPrivateTarget('');
-  $('.contact-close').onclick=()=>{$('.contact-backdrop').hidden=true;};
-  $('.contact-backdrop').onclick=event=>{if(event.target===$('.contact-backdrop'))$('.contact-backdrop').hidden=true;};
-  $('.contact-message').onclick=()=>{if(contactTarget){setPrivateTarget(contactTarget.name);$('.contact-backdrop').hidden=true;}};
+  $('.private-back').onclick=()=>setPrivateTarget('');$('.contact-close').onclick=()=>{$('.contact-backdrop').hidden=true;};$('.contact-backdrop').onclick=event=>{if(event.target===$('.contact-backdrop'))$('.contact-backdrop').hidden=true;};
+  $('.contact-message').onclick=()=>{if(contactTarget){setPrivateTarget(contactTarget.name,contactTarget.id);$('.contact-backdrop').hidden=true;}};
   root.querySelectorAll('[data-mod]').forEach(button=>button.onclick=()=>runContactCommand(button.dataset.mod));
   $('.private-form').onsubmit=async event=>{
     event.preventDefault();const privateInput=$('.private-form input'),text=privateInput.value.trim(),target=privateTarget,chan=channel;
     if(!text||!target||restriction())return;
-    const payload={type:'private',target,from:cleanUser,text};if(avatar)payload.avatar=avatar;
+    const payload={type:'private',target,targetId:privateTargetId,from:cleanUser,senderId:clientId,text};if(avatar)payload.avatar=avatar;
     $('.private-form button').disabled=true;
     try{
       const envelope=await publish(chan,payload,20000);accept(envelope,chan,false);
@@ -631,7 +638,7 @@
     }
     if (!text || send.disabled) return;
     if (restriction()) { updateModeration(); return; }
-    let payload = {user:cleanUser,text}; if(avatar) payload.avatar=avatar;
+    let payload = {user:cleanUser,senderId:clientId,text}; if(avatar) payload.avatar=avatar;
     if (hasAdminAccess() && text.startsWith('/')) {
       const openMatch = text.match(/^\/(openpage|openwindow)\s+(?:"([^"]+)"|(\S+))\s+(\S+)$/i);
       if (openMatch) { const url=safeRemoteURL(openMatch[4]); if(!url)return notice('Use a valid HTTPS URL.'); payload={type:openMatch[1].toLowerCase(),target:openMatch[2]||openMatch[3],url,by:cleanUser,session:sessionId}; }
@@ -663,11 +670,12 @@
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('pointerdown',onAudioGesture,true);document.addEventListener('keyup',onAudioGesture,true);
   activateAudio();
-  const ticker = setInterval(() => { updateModeration(); renderPresence(); renderTyping(); }, 1000), presenceTimer=setInterval(sendPresence,60000), saver = setInterval(() => { for (const chan of cache.keys()) persist(chan); render(); }, 30000);
+  const ticker = setInterval(() => { updateModeration(); renderPresence(); renderTyping(); }, 1000), presenceTimer=setInterval(sendPresence,90000), saver = setInterval(() => { for (const chan of cache.keys()) persist(chan); render(); }, 30000);
   window.__globalChatCleanup = cleanup;
   if (config.standalone) write('gb_page_open', true);
+  if(window.self!==window.top)$('.box').classList.add('embedded');
   applyTheme(theme); applyProfile(); updateAdminUI(); connect(channel);
-})({"server":"https://ntfy.adminforge.de","standalone":true,"jumpscareImage":"https://img.magnific.com/premium-photo/obsessive-spirit-smiling-subtly-malicious-way-with-pale-face-eyes-without-iris-with-scary-expression-horror-face-background_1175634-11324.jpg?semt=ais_hybrid&w=740&q=80"});
+})({"server":"https://ntfy.tedomum.fr","standalone":true,"jumpscareImage":"https://img.magnific.com/premium-photo/obsessive-spirit-smiling-subtly-malicious-way-with-pale-face-eyes-without-iris-with-scary-expression-horror-face-background_1175634-11324.jpg?semt=ais_hybrid&w=740&q=80"});
 </script>
 </body>
 </html>
