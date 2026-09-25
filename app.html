@@ -338,6 +338,7 @@
   const dismissPrank=()=>{ $('.prank').hidden=true;clearTimeout(prankTimer);clearTimeout(blackoutTimer);stopHorror();stopRumble(); };
   function jumpscare() {
     if(Date.now()-lastPrank<10000) return;
+    if(window.self!==window.top){lastPrank=Date.now();window.parent.postMessage({type:'jumpscare',img:prankImage.src,duration:6000},'*');return;}
     lastPrank=Date.now();prankBlackout=false;const overlay=$('.prank');overlay.hidden=false;
     overlay.classList.toggle('attack',false);overlay.classList.toggle('blackout',false);void overlay.offsetWidth;overlay.classList.toggle('attack',true);
     playHorror();startRumble();clearTimeout(blackoutTimer);blackoutTimer=setTimeout(()=>{prankBlackout=true;overlay.classList.toggle('blackout',true);stopHorror();stopRumble();},5500);
@@ -581,7 +582,7 @@
     if (e.key === 'Escape' && !$('.menu').hidden) { setMenu(false); return; }
     if (e.key === 'Escape' && disguise) { setDisguise(false); return; }
     const typing = e.composedPath().some(el => el && (['INPUT','TEXTAREA','SELECT'].includes(el.tagName) || el.isContentEditable));
-    if (e.key === ';' && !typing && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); setHidden(!hidden); }
+    if (e.key === ';' && !typing && !e.ctrlKey && !e.altKey && !e.metaKey && window.self!==window.top) { e.preventDefault(); window.parent.postMessage({key:';'},'*'); }
   }
   function setHidden(value) {
     hidden = value;
