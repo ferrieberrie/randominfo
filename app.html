@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Chat App</title>
-  <!-- MQTT.js for Real-time Cross-Device Communication -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
   <style>
     :root {
@@ -28,11 +27,9 @@
       --card-bg: #1c1c1e;
       --primary: #0a84ff;
       --bubble-me: #0a84ff;
-      --text-me: #ffffff;
       --bubble-other: #2c2c2e;
       --text-other: #ffffff;
       --text: #ffffff;
-      --text-sub: #8e8e93;
       --border: rgba(255, 255, 255, 0.12);
       --chat-bg: #121214;
     }
@@ -58,7 +55,6 @@
       --card-bg: #220b3d;
       --primary: #ff007f;
       --bubble-me: #ff007f;
-      --text-me: #ffffff;
       --bubble-other: #381261;
       --text-other: #00f0ff;
       --text: #00f0ff;
@@ -85,9 +81,9 @@
     .tab-btn { flex: 1; padding: 6px; border: none; background: none; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; }
     .tab-btn.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid var(--border); }
 
-    .pinned-banner { background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 6px 12px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-sub); }
-    .pinned-banner strong { color: var(--primary); font-weight: 700; }
-    .pinned-banner button { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 14px; }
+    .pinned-banner { background: #ffcc00; border-bottom: 2px solid #b38f00; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #000; font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,0.15); z-index: 5; }
+    .pinned-banner strong { color: #d13000; font-weight: 800; text-transform: uppercase; }
+    .pinned-banner button { background: none; border: none; color: #000; cursor: pointer; font-size: 18px; font-weight: bold; }
 
     .messages-container { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--chat-bg); }
     
@@ -108,6 +104,7 @@
     .composer { padding: 10px 12px; background: var(--header-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; position: relative; }
     .emoji-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
     .composer input { flex: 1; border: 1px solid var(--border); border-radius: 20px; padding: 9px 14px; font-size: 13px; outline: none; background: var(--card-bg); color: var(--text); }
+    .composer input:disabled { opacity: 0.5; cursor: not-allowed; }
     .composer button.send-btn { background: var(--primary); color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     .char-count { font-size: 9px; color: var(--text-sub); position: absolute; right: 54px; bottom: 2px; }
 
@@ -121,6 +118,7 @@
     .modal input { width: 100%; border: 1px solid var(--border); background: var(--bg-color); color: var(--text); padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; outline: none; }
     .modal button { width: 100%; padding: 11px; border: none; background: var(--primary); color: #fff; font-weight: 600; border-radius: 10px; cursor: pointer; margin-top: 6px; font-size: 13px; }
     .modal button.secondary { background: var(--bg-color); color: var(--text); border: 1px solid var(--border); }
+    .modal button.danger { background: rgba(255, 59, 48, 0.1); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.3); }
     .hidden { display: none !important; }
 
     .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
@@ -129,6 +127,9 @@
 
     .jumpscare-overlay { position: absolute; inset: 0; background: #000; z-index: 99999; display: flex; align-items: center; justify-content: center; }
     .jumpscare-overlay img { width: 100%; height: 100%; object-fit: cover; }
+    
+    .punishment-screen { position: fixed; inset: 0; background: #000; color: #fff; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: monospace; }
+    .punishment-screen h1 { color: #ff3b30; font-size: 40px; margin-bottom: 10px; text-transform: uppercase; }
   </style>
 </head>
 <body>
@@ -158,7 +159,7 @@
   </div>
 
   <div class="pinned-banner hidden" id="pinned-banner">
-    <div>📌 <strong>Pinned:</strong> <span id="pinned-text"></span></div>
+    <div><strong>📌 PINNED:</strong> <span id="pinned-text"></span></div>
     <button id="unpin-btn">&times;</button>
   </div>
 
@@ -181,11 +182,21 @@
     <button type="submit" class="send-btn">&#10148;</button>
   </form>
 
+  <!-- Modals -->
   <div class="modal-overlay" id="auth-modal">
     <div class="modal">
       <h3>Enter Username</h3>
       <input type="text" id="username-input" placeholder="Your username..." maxlength="25">
       <button id="auth-continue-btn">Continue</button>
+    </div>
+  </div>
+  
+  <div class="modal-overlay hidden" id="edit-pfp-modal">
+    <div class="modal">
+      <h3>Edit Profile Picture</h3>
+      <input type="url" id="pfp-url-input" placeholder="Paste image URL here...">
+      <button id="pfp-save-btn">Save</button>
+      <button id="pfp-cancel-btn" class="secondary">Cancel</button>
     </div>
   </div>
 
@@ -202,10 +213,18 @@
     <div class="modal">
       <img id="profile-modal-img" src="" style="width: 68px; height: 68px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid var(--primary);">
       <h3 id="profile-modal-name">User Profile</h3>
-      <div id="admin-actions" class="hidden" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
-        <p style="font-size: 10px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px;">ADMIN CONTROLS</p>
-        <button id="admin-jumpscare-btn" class="secondary" style="color: #ff3b30;">Jumpscare Target</button>
+      
+      <div id="admin-actions" class="hidden" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+        <p style="font-size: 10px; font-weight: 700; color: var(--text-sub); margin-bottom: 2px;">ADMIN CONTROLS</p>
+        <button id="admin-jumpscare-btn" class="danger">Jumpscare</button>
+        <button id="admin-kick-btn" class="danger">Kick User</button>
+        <button id="admin-ban-btn" class="danger">Ban User</button>
+        <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <input type="number" id="mute-duration-input" placeholder="Seconds" style="margin: 0; width: 50%;">
+          <button id="admin-mute-btn" class="danger" style="margin: 0; width: 50%;">Mute</button>
+        </div>
       </div>
+      
       <button id="profile-close-btn" class="secondary" style="margin-top: 10px;">Close</button>
     </div>
   </div>
@@ -232,21 +251,41 @@
   </div>
 
   <div class="jumpscare-overlay hidden" id="jumpscare-overlay">
-    <img src="https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=800&auto=format&fit=crop" alt="Jumpscare">
+    <img src="https://i.imgur.com/K5aEaqe.jpeg" alt="Jumpscare">
+  </div>
+  
+  <div class="punishment-screen hidden" id="ban-screen">
+    <h1>BANNED</h1>
+    <p>You have been banned from this chat by an administrator.</p>
+  </div>
+  
+  <div class="punishment-screen hidden" id="kick-screen">
+    <h1>KICKED</h1>
+    <p>You have been kicked from the server.</p>
+    <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; font-size: 16px; cursor: pointer;">Reconnect</button>
   </div>
 
   <script>
+    // Enforcement Checks
+    if (localStorage.getItem('gb_banned') === 'true') {
+      document.getElementById('ban-screen').classList.remove('hidden');
+    }
+
     const DEFAULT_PFP = "https://i.pinimg.com/originals/13/74/20/137420f5b9c39bc911e472f5d20f053e.jpg?nii=t";
     const EMOJI_LIST = [
       "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉",
       "😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎",
       "🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭",
       "😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣","🤗","🫡",
-      "🤫","🫠","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤",
-      "😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","💩","🤡","👹","💀","☠️","👻",
-      "👽","👾","🤖","🔥","✨","🌟","💫","💥","💯","👍","👎","👏","🙌","🫶","🤝","❤️",
-      "🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","🎉","👀","🚀","💡","💬","👑","💎"
+      "💀","☠️","👻","👽","👾","🤖","🔥","✨","🌟","💫","💥","💯","👍","👎","👏","❤️"
     ];
+
+    const AUDIO_SOURCES = {
+      scream: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_c6ccf3232f.mp3',
+      siren: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_6a3013be82.mp3',
+      yell: 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_2604245607.mp3',
+      laugh: 'https://cdn.pixabay.com/download/audio/2022/10/25/audio_24a2ef693f.mp3'
+    };
 
     let currentUser = localStorage.getItem('gb_user') || "";
     let userPfp = localStorage.getItem('gb_pfp') || DEFAULT_PFP;
@@ -256,24 +295,14 @@
     let activeUsers = new Map();
     let selectedProfileUser = null;
 
-    // Load Chat History with ZERO default system messages
-    let chatHistory = JSON.parse(localStorage.getItem('gb_chat_history')) || {
-      channel1: [],
-      channel2: [],
-      channel3: []
-    };
-
-    let pinnedMessages = JSON.parse(localStorage.getItem('gb_pinned_messages')) || {
-      channel1: "",
-      channel2: "",
-      channel3: ""
-    };
+    let chatHistory = JSON.parse(localStorage.getItem('gb_chat_history')) || { channel1: [], channel2: [], channel3: [] };
+    let pinnedMessages = JSON.parse(localStorage.getItem('gb_pinned_messages')) || { channel1: "", channel2: "", channel3: "" };
 
     const $ = selector => document.querySelector(selector);
     const messagesEl = $('#messages');
     const msgInput = $('#msg-input');
 
-    // Populate Emojis
+    // Emoji Setup
     const emojiPickerEl = $('#emoji-picker');
     EMOJI_LIST.forEach(emoji => {
       const span = document.createElement('span');
@@ -282,6 +311,7 @@
     });
 
     setTheme(currentTheme);
+    cleanHistory7Days();
 
     function setTheme(name) {
       currentTheme = name;
@@ -292,7 +322,19 @@
       });
     }
 
-    if (currentUser) {
+    function cleanHistory7Days() {
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      let changed = false;
+      for (const ch in chatHistory) {
+        const originalLen = chatHistory[ch].length;
+        chatHistory[ch] = chatHistory[ch].filter(msg => (now - new Date(msg.time).getTime()) < sevenDaysMs);
+        if (chatHistory[ch].length !== originalLen) changed = true;
+      }
+      if (changed) localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
+    }
+
+    if (currentUser && localStorage.getItem('gb_banned') !== 'true') {
       $('#auth-modal').classList.add('hidden');
       registerActiveUser(currentUser, userPfp);
     }
@@ -317,8 +359,8 @@
       $('#active-count').textContent = activeUsers.size;
     }
 
-    // --- REAL-TIME NETWORK (HiveMQ MQTT WebSocket Broker) ---
-    const MQTT_TOPIC = "global_chat_v3_network_sync_public";
+    // --- REAL-TIME NETWORK (HiveMQ MQTT) ---
+    const MQTT_TOPIC = "global_chat_v4_network_sync_public";
     const localChannel = new BroadcastChannel('global_chat_local_sync');
     let mqttClient = null;
 
@@ -332,7 +374,7 @@
         try { handleIncomingData(JSON.parse(payload.toString())); } catch(e){}
       });
     } catch(e) {
-      console.warn("MQTT failed to initialize, falling back to BroadcastChannel.", e);
+      console.warn("MQTT failed to initialize, falling back to BroadcastChannel.");
     }
 
     localChannel.onmessage = (e) => handleIncomingData(e.data);
@@ -350,15 +392,12 @@
       if (data.type === 'CHAT_MESSAGE') {
         const { channel, msg } = data;
         if (!chatHistory[channel]) chatHistory[channel] = [];
-
-        // Deduplicate incoming messages
         const exists = chatHistory[channel].some(m => m.user === msg.user && m.text === msg.text && Math.abs(new Date(m.time) - new Date(msg.time)) < 2000);
         if (!exists) {
           chatHistory[channel].push(msg);
+          cleanHistory7Days();
           localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
-          if (channel === activeTab) {
-            appendBubble(msg, msg.user === currentUser);
-          }
+          if (channel === activeTab) appendBubble(msg, msg.user === currentUser);
         }
       } else if (data.type === 'PIN_UPDATE') {
         pinnedMessages = data.pinnedMessages;
@@ -368,73 +407,30 @@
         activeUsers.set(data.name.toLowerCase(), { name: data.name, pfp: data.pfp });
         updateActiveCount();
       } else if (data.type === 'SOUND') {
-        playSynthSound(data.sound);
+        playOldSound(data.sound);
       } else if (data.type === 'JUMPSCARE') {
+        if (data.target && data.target.toLowerCase() === currentUser.toLowerCase()) triggerJumpscare();
+      } else if (data.type === 'MODERATION') {
         if (data.target && data.target.toLowerCase() === currentUser.toLowerCase()) {
-          triggerJumpscare();
+          applyPunishment(data.action, data.duration);
         }
       }
     }
 
-    // WEB AUDIO SYNTH SOUNDS
-    function playSynthSound(type) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = ctx.currentTime;
-
-        if (type === 'scream') {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(300, now);
-          osc.frequency.exponentialRampToValueAtTime(3200, now + 0.8);
-          gain.gain.setValueAtTime(0.6, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.8);
-        } else if (type === 'siren') {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(600, now);
-          osc.frequency.linearRampToValueAtTime(950, now + 0.3);
-          osc.frequency.linearRampToValueAtTime(600, now + 0.6);
-          gain.gain.setValueAtTime(0.4, now);
-          gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.6);
-        } else if (type === 'yell') {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'square';
-          osc.frequency.setValueAtTime(140, now);
-          osc.frequency.exponentialRampToValueAtTime(700, now + 0.5);
-          gain.gain.setValueAtTime(0.5, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.5);
-        } else if (type === 'laugh') {
-          for (let i = 0; i < 5; i++) {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(350 + (i % 2) * 200, now + i * 0.12);
-            gain.gain.setValueAtTime(0.4, now + i * 0.12);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.1);
-            osc.connect(gain); gain.connect(ctx.destination);
-            osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.1);
-          }
-        }
-      } catch(e) { console.error("Web Audio error", e); }
+    function playOldSound(type) {
+      if (AUDIO_SOURCES[type]) {
+        const audio = new Audio(AUDIO_SOURCES[type]);
+        audio.play().catch(e => console.log("Autoplay prevented:", e));
+      }
     }
 
     function triggerSoundCommand(soundName) {
       if (!isAdmin) return;
-      playSynthSound(soundName);
+      playOldSound(soundName);
       broadcastData({ type: 'SOUND', sound: soundName });
     }
 
-    // UI Navigation & Dropdown
+    // UI Navigation & Modals
     $('#menu-toggle').onclick = () => {
       const drop = $('#main-dropdown');
       drop.style.display = drop.style.display === 'flex' ? 'none' : 'flex';
@@ -447,13 +443,20 @@
 
     $('#menu-edit-profile').onclick = () => {
       $('#main-dropdown').style.display = 'none';
-      const link = prompt("Enter image URL for PFP:", userPfp);
-      if (link !== null && link.trim() !== "") {
-        userPfp = link.trim();
+      $('#pfp-url-input').value = userPfp;
+      $('#edit-pfp-modal').classList.remove('hidden');
+    };
+    
+    $('#pfp-cancel-btn').onclick = () => $('#edit-pfp-modal').classList.add('hidden');
+    $('#pfp-save-btn').onclick = () => {
+      const url = $('#pfp-url-input').value.trim();
+      if (url) {
+        userPfp = url;
         localStorage.setItem('gb_pfp', userPfp);
         registerActiveUser(currentUser, userPfp);
         renderChannelMessages();
       }
+      $('#edit-pfp-modal').classList.add('hidden');
     };
 
     $('#menu-customize').onclick = () => {
@@ -476,12 +479,12 @@
     $('#admin-cancel-btn').onclick = () => $('#admin-modal').classList.add('hidden');
 
     $('#admin-submit-btn').onclick = () => {
-      const pass = $('#admin-pass-input').value.trim();
-      if (pass === "smellypoop123") {
+      if ($('#admin-pass-input').value.trim() === "smellypoop123") {
         isAdmin = true;
         $('#admin-modal').classList.add('hidden');
         $('#soundboard').style.display = 'flex';
         $('#menu-admin-login').textContent = "Log Out Admin 👑";
+        $('#admin-pass-input').value = '';
         alert("Admin authenticated successfully!");
       } else {
         alert("Incorrect admin password.");
@@ -500,8 +503,7 @@
 
     function renderChannelMessages() {
       messagesEl.innerHTML = '';
-      const msgs = chatHistory[activeTab] || [];
-      msgs.forEach(msg => appendBubble(msg, msg.user === currentUser));
+      (chatHistory[activeTab] || []).forEach(msg => appendBubble(msg, msg.user === currentUser));
     }
 
     function renderPinnedBanner() {
@@ -516,10 +518,7 @@
     }
 
     $('#unpin-btn').onclick = () => {
-      if (!isAdmin) {
-        appendBubble({ text: "❌ Only admins can unpin messages!", isErr: true }, false);
-        return;
-      }
+      if (!isAdmin) return appendBubble({ text: "❌ Only admins can unpin messages!", isErr: true }, false);
       pinnedMessages[activeTab] = "";
       localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
       renderPinnedBanner();
@@ -527,15 +526,17 @@
     };
 
     $('#emoji-toggle').onclick = () => {
-      const picker = $('#emoji-picker');
-      picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+      const p = $('#emoji-picker');
+      p.style.display = p.style.display === 'grid' ? 'none' : 'grid';
     };
 
     $('#emoji-picker').onclick = (e) => {
       if (e.target.tagName === 'SPAN') {
-        msgInput.value += e.target.textContent;
+        if (!msgInput.disabled) {
+          msgInput.value += e.target.textContent;
+          updateCharCounter();
+        }
         $('#emoji-picker').style.display = 'none';
-        updateCharCounter();
       }
     };
 
@@ -545,26 +546,34 @@
       $('#char-counter').textContent = `${msgInput.value.length}/500`;
     }
 
-    // Composer & Admin Commands
+    function checkMuteState() {
+      const muteUntil = parseInt(localStorage.getItem('gb_muted_until') || '0', 10);
+      if (Date.now() < muteUntil) {
+        const remaining = Math.ceil((muteUntil - Date.now()) / 1000);
+        appendBubble({ text: `🔇 You are muted for ${remaining} more seconds.`, isErr: true }, false);
+        return false;
+      }
+      return true;
+    }
+
+    // Composer
     $('#chat-form').onsubmit = (e) => {
       e.preventDefault();
       const rawText = msgInput.value.trim();
       if (!rawText) return;
 
-      // Command handling with admin checks
+      if (!checkMuteState()) return;
+
       if (rawText.startsWith('/announce ')) {
         if (!isAdmin) {
-          appendBubble({ text: "❌ Permission Denied: /announce is admin-only!", isErr: true }, false);
+          appendBubble({ text: "❌ Permission Denied: Admin only!", isErr: true }, false);
         } else {
           const annText = rawText.replace('/announce ', '').trim();
-          if (annText) {
-            const annMsg = { user: currentUser, pfp: userPfp, text: `📢 ANNOUNCEMENT: ${annText}`, time: new Date(), isAnnouncement: true };
-            saveAndBroadcast(annMsg);
-          }
+          if (annText) saveAndBroadcast({ user: currentUser, pfp: userPfp, text: `📢 ANNOUNCEMENT: ${annText}`, time: new Date(), isAnnouncement: true });
         }
       } else if (rawText.startsWith('/pin ')) {
         if (!isAdmin) {
-          appendBubble({ text: "❌ Permission Denied: /pin is admin-only!", isErr: true }, false);
+          appendBubble({ text: "❌ Permission Denied: Admin only!", isErr: true }, false);
         } else {
           const pinText = rawText.replace('/pin ', '').trim();
           if (pinText) {
@@ -574,18 +583,8 @@
             broadcastData({ type: 'PIN_UPDATE', pinnedMessages });
           }
         }
-      } else if (rawText === '/unpin') {
-        if (!isAdmin) {
-          appendBubble({ text: "❌ Permission Denied: /unpin is admin-only!", isErr: true }, false);
-        } else {
-          pinnedMessages[activeTab] = "";
-          localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
-          renderPinnedBanner();
-          broadcastData({ type: 'PIN_UPDATE', pinnedMessages });
-        }
       } else {
-        const newMsg = { user: currentUser, pfp: userPfp, text: rawText, time: new Date() };
-        saveAndBroadcast(newMsg);
+        saveAndBroadcast({ user: currentUser, pfp: userPfp, text: rawText, time: new Date() });
       }
 
       msgInput.value = '';
@@ -595,8 +594,8 @@
     function saveAndBroadcast(msg) {
       if (!chatHistory[activeTab]) chatHistory[activeTab] = [];
       chatHistory[activeTab].push(msg);
+      cleanHistory7Days();
       localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
-
       appendBubble(msg, true);
       broadcastData({ type: 'CHAT_MESSAGE', channel: activeTab, msg });
     }
@@ -644,11 +643,8 @@
       time.textContent = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       content.append(user, body, time);
-      if (isMe) {
-        bubble.append(content, img);
-      } else {
-        bubble.append(img, content);
-      }
+      if (isMe) bubble.append(content, img);
+      else bubble.append(img, content);
 
       messagesEl.appendChild(bubble);
       messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -660,7 +656,7 @@
       $('#profile-modal-img').src = pfp || DEFAULT_PFP;
       $('#profile-modal').classList.remove('hidden');
 
-      if (isAdmin) {
+      if (isAdmin && username.toLowerCase() !== currentUser.toLowerCase()) {
         $('#admin-actions').classList.remove('hidden');
       } else {
         $('#admin-actions').classList.add('hidden');
@@ -669,17 +665,48 @@
 
     $('#profile-close-btn').onclick = () => $('#profile-modal').classList.add('hidden');
 
+    // Admin Profile Moderation Actions
     $('#admin-jumpscare-btn').onclick = () => {
       broadcastData({ type: 'JUMPSCARE', target: selectedProfileUser });
-      triggerJumpscare();
       $('#profile-modal').classList.add('hidden');
+    };
+    $('#admin-kick-btn').onclick = () => {
+      broadcastData({ type: 'MODERATION', action: 'KICK', target: selectedProfileUser });
+      $('#profile-modal').classList.add('hidden');
+    };
+    $('#admin-ban-btn').onclick = () => {
+      broadcastData({ type: 'MODERATION', action: 'BAN', target: selectedProfileUser });
+      $('#profile-modal').classList.add('hidden');
+    };
+    $('#admin-mute-btn').onclick = () => {
+      const dur = parseInt($('#mute-duration-input').value, 10);
+      if (dur > 0) {
+        broadcastData({ type: 'MODERATION', action: 'MUTE', target: selectedProfileUser, duration: dur });
+        $('#mute-duration-input').value = '';
+        $('#profile-modal').classList.add('hidden');
+      } else {
+        alert("Enter a valid duration in seconds.");
+      }
     };
 
     function triggerJumpscare() {
       const overlay = $('#jumpscare-overlay');
       overlay.classList.remove('hidden');
-      playSynthSound('scream');
+      playOldSound('scream');
       setTimeout(() => overlay.classList.add('hidden'), 3500);
+    }
+
+    function applyPunishment(action, duration) {
+      if (action === 'BAN') {
+        localStorage.setItem('gb_banned', 'true');
+        $('#ban-screen').classList.remove('hidden');
+      } else if (action === 'KICK') {
+        $('#kick-screen').classList.remove('hidden');
+      } else if (action === 'MUTE') {
+        const muteUntil = Date.now() + (duration * 1000);
+        localStorage.setItem('gb_muted_until', muteUntil.toString());
+        appendBubble({ text: `🔇 You have been muted by an admin for ${duration} seconds.`, isErr: true }, false);
+      }
     }
 
     $('#online-btn').onclick = () => {
@@ -687,8 +714,12 @@
       list.innerHTML = '';
       activeUsers.forEach(u => {
         const item = document.createElement('div');
-        item.style.cssText = "padding:8px 0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px;";
+        item.style.cssText = "padding:8px 0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; cursor:pointer;";
         item.innerHTML = `<img src="${u.pfp}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;"> <span>${u.name}</span>`;
+        item.onclick = () => {
+          $('#users-modal').classList.add('hidden');
+          openProfileModal(u.name, u.pfp);
+        };
         list.appendChild(item);
       });
       $('#users-modal').classList.remove('hidden');
