@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Chat App</title>
+  <!-- MQTT.js for Real-time Cross-Device Communication -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
   <style>
     :root {
       --bg-color: #f2f2f7;
-      --header-bg: rgba(255, 255, 255, 0.85);
+      --header-bg: rgba(255, 255, 255, 0.88);
       --card-bg: #ffffff;
       --primary: #007aff;
       --bubble-me: #007aff;
@@ -66,7 +68,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; transition: background 0.15s ease, color 0.15s ease; }
-    body { background: var(--bg-color); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    body { background: var(--bg-color); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
     header { height: 52px; background: var(--header-bg); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; position: relative; z-index: 10; }
     .header-left { display: flex; align-items: center; gap: 8px; }
@@ -83,7 +85,6 @@
     .tab-btn { flex: 1; padding: 6px; border: none; background: none; font-size: 11px; font-weight: 600; color: var(--text-sub); border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; }
     .tab-btn.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid var(--border); }
 
-    /* Pinned Message Banner */
     .pinned-banner { background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 6px 12px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-sub); }
     .pinned-banner strong { color: var(--primary); font-weight: 700; }
     .pinned-banner button { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 14px; }
@@ -94,13 +95,12 @@
     .bubble.me { align-self: flex-end; background: var(--bubble-me); color: var(--text-me); border-bottom-right-radius: 4px; }
     .bubble.other { align-self: flex-start; background: var(--bubble-other); color: var(--text-other); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
     .bubble.announcement { max-width: 100%; align-self: center; background: rgba(255, 149, 0, 0.15); border: 1px solid rgba(255, 149, 0, 0.4); color: var(--text); border-radius: 12px; width: 100%; text-align: center; font-weight: 600; justify-content: center; }
-    
+    .bubble.system-err { max-width: 100%; align-self: center; background: rgba(255, 59, 48, 0.15); border: 1px solid rgba(255, 59, 48, 0.4); color: #ff3b30; border-radius: 12px; width: 100%; text-align: center; font-weight: 600; justify-content: center; }
+
     .bubble-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; cursor: pointer; flex-shrink: 0; }
     .bubble-content { flex: 1; }
     .bubble-user { font-size: 10px; font-weight: 700; opacity: 0.75; margin-bottom: 2px; cursor: pointer; }
     .bubble-time { font-size: 8px; opacity: 0.6; text-align: right; margin-top: 4px; }
-
-    .typing-bar { height: 16px; padding: 0 14px; font-size: 10px; color: var(--text-sub); font-style: italic; background: transparent; }
 
     .soundboard { background: var(--card-bg); border-top: 1px solid var(--border); padding: 8px 12px; display: none; gap: 6px; overflow-x: auto; }
     .soundboard button { background: var(--bg-color); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -111,7 +111,6 @@
     .composer button.send-btn { background: var(--primary); color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     .char-count { font-size: 9px; color: var(--text-sub); position: absolute; right: 54px; bottom: 2px; }
 
-    /* Expanded Emoji Picker */
     .emoji-picker { position: absolute; bottom: 60px; left: 12px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 12px; display: none; grid-template-columns: repeat(8, 1fr); gap: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.25); z-index: 50; max-height: 220px; overflow-y: auto; width: 300px; }
     .emoji-picker span { font-size: 20px; cursor: pointer; text-align: center; transition: transform 0.1s; }
     .emoji-picker span:hover { transform: scale(1.25); }
@@ -128,7 +127,7 @@
     .theme-card { padding: 12px; border-radius: 12px; border: 2px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; text-align: center; }
     .theme-card.active { border-color: var(--primary); background: rgba(0,122,255,0.1); }
 
-    .jumpscare-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .jumpscare-overlay { position: absolute; inset: 0; background: #000; z-index: 99999; display: flex; align-items: center; justify-content: center; }
     .jumpscare-overlay img { width: 100%; height: 100%; object-fit: cover; }
   </style>
 </head>
@@ -153,9 +152,9 @@
   </header>
 
   <div class="chat-tabs" id="tab-bar">
-    <button class="tab-btn active" data-target="global"># Global</button>
-    <button class="tab-btn" data-target="lounge"># Lounge</button>
-    <button class="tab-btn" data-target="memes"># Memes</button>
+    <button class="tab-btn active" data-target="channel1"># Channel 1</button>
+    <button class="tab-btn" data-target="channel2"># Channel 2</button>
+    <button class="tab-btn" data-target="channel3"># Channel 3</button>
   </div>
 
   <div class="pinned-banner hidden" id="pinned-banner">
@@ -165,17 +164,14 @@
 
   <main class="messages-container" id="messages"></main>
 
-  <div class="typing-bar" id="typing-indicator"></div>
-
   <div class="soundboard" id="soundboard">
     <span style="font-size: 10px; font-weight: 700; color: var(--text-sub); align-self: center;">ADMIN SOUNDS:</span>
-    <button onclick="playAdminSound('scream')">Scream</button>
-    <button onclick="playAdminSound('siren')">Siren</button>
-    <button onclick="playAdminSound('yell')">Creature Yell</button>
-    <button onclick="playAdminSound('laugh')">Cartoon Laugh</button>
+    <button onclick="triggerSoundCommand('scream')">Scream</button>
+    <button onclick="triggerSoundCommand('siren')">Siren</button>
+    <button onclick="triggerSoundCommand('yell')">Creature Yell</button>
+    <button onclick="triggerSoundCommand('laugh')">Cartoon Laugh</button>
   </div>
 
-  <!-- Expanded Emoji Picker -->
   <div class="emoji-picker" id="emoji-picker"></div>
 
   <form class="composer" id="chat-form">
@@ -185,7 +181,6 @@
     <button type="submit" class="send-btn">&#10148;</button>
   </form>
 
-  <!-- Username Only Auth Modal -->
   <div class="modal-overlay" id="auth-modal">
     <div class="modal">
       <h3>Enter Username</h3>
@@ -237,7 +232,7 @@
   </div>
 
   <div class="jumpscare-overlay hidden" id="jumpscare-overlay">
-    <img src="jumpscare.png" alt="Jumpscare">
+    <img src="https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=800&auto=format&fit=crop" alt="Jumpscare">
   </div>
 
   <script>
@@ -253,35 +248,32 @@
       "🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","🎉","👀","🚀","💡","💬","👑","💎"
     ];
 
-    // Live Cross-Tab Network Synchronization Channel
-    const chatNetwork = new BroadcastChannel('global_chat_network');
-
     let currentUser = localStorage.getItem('gb_user') || "";
     let userPfp = localStorage.getItem('gb_pfp') || DEFAULT_PFP;
     let currentTheme = localStorage.getItem('gb_theme') || "light";
     let isAdmin = false;
-    let activeTab = "global";
+    let activeTab = "channel1";
     let activeUsers = new Map();
     let selectedProfileUser = null;
 
-    // Load Chat History with NO default system welcome messages
+    // Load Chat History with ZERO default system messages
     let chatHistory = JSON.parse(localStorage.getItem('gb_chat_history')) || {
-      global: [],
-      lounge: [],
-      memes: []
+      channel1: [],
+      channel2: [],
+      channel3: []
     };
 
     let pinnedMessages = JSON.parse(localStorage.getItem('gb_pinned_messages')) || {
-      global: "",
-      lounge: "",
-      memes: ""
+      channel1: "",
+      channel2: "",
+      channel3: ""
     };
 
     const $ = selector => document.querySelector(selector);
     const messagesEl = $('#messages');
     const msgInput = $('#msg-input');
 
-    // Populate Emoji Grid
+    // Populate Emojis
     const emojiPickerEl = $('#emoji-picker');
     EMOJI_LIST.forEach(emoji => {
       const span = document.createElement('span');
@@ -305,7 +297,6 @@
       registerActiveUser(currentUser, userPfp);
     }
 
-    // Username Only Access
     $('#auth-continue-btn').onclick = () => {
       const name = $('#username-input').value.trim();
       if (!name) return alert("Please enter a username.");
@@ -319,43 +310,131 @@
     function registerActiveUser(name, pfp) {
       activeUsers.set(name.toLowerCase(), { name, pfp });
       updateActiveCount();
-      chatNetwork.postMessage({ type: 'PRESENCE', name, pfp });
+      broadcastData({ type: 'PRESENCE', name, pfp });
     }
 
     function updateActiveCount() {
       $('#active-count').textContent = activeUsers.size;
     }
 
-    // Direct Cross-Tab & Cross-Iframe Multi-Sync Listeners
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'gb_chat_history') {
-        chatHistory = JSON.parse(e.newValue || '{}');
-        renderChannelMessages();
-      } else if (e.key === 'gb_pinned_messages') {
-        pinnedMessages = JSON.parse(e.newValue || '{}');
-        renderPinnedBanner();
-      }
-    });
+    // --- REAL-TIME NETWORK (HiveMQ MQTT WebSocket Broker) ---
+    const MQTT_TOPIC = "global_chat_v3_network_sync_public";
+    const localChannel = new BroadcastChannel('global_chat_local_sync');
+    let mqttClient = null;
 
-    chatNetwork.onmessage = (e) => {
-      const data = e.data;
+    try {
+      mqttClient = mqtt.connect('wss://broker.hivemq.com:8000/mqtt', { clientId: 'gb_' + Math.random().toString(16).substring(2, 10) });
+      mqttClient.on('connect', () => {
+        mqttClient.subscribe(MQTT_TOPIC);
+        if (currentUser) broadcastData({ type: 'PRESENCE', name: currentUser, pfp: userPfp });
+      });
+      mqttClient.on('message', (topic, payload) => {
+        try { handleIncomingData(JSON.parse(payload.toString())); } catch(e){}
+      });
+    } catch(e) {
+      console.warn("MQTT failed to initialize, falling back to BroadcastChannel.", e);
+    }
+
+    localChannel.onmessage = (e) => handleIncomingData(e.data);
+
+    function broadcastData(payload) {
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(MQTT_TOPIC, JSON.stringify(payload));
+      }
+      localChannel.postMessage(payload);
+    }
+
+    function handleIncomingData(data) {
       if (!data) return;
 
-      if (data.type === 'SYNC_RELOAD') {
-        chatHistory = JSON.parse(localStorage.getItem('gb_chat_history')) || chatHistory;
-        renderChannelMessages();
+      if (data.type === 'CHAT_MESSAGE') {
+        const { channel, msg } = data;
+        if (!chatHistory[channel]) chatHistory[channel] = [];
+
+        // Deduplicate incoming messages
+        const exists = chatHistory[channel].some(m => m.user === msg.user && m.text === msg.text && Math.abs(new Date(m.time) - new Date(msg.time)) < 2000);
+        if (!exists) {
+          chatHistory[channel].push(msg);
+          localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
+          if (channel === activeTab) {
+            appendBubble(msg, msg.user === currentUser);
+          }
+        }
+      } else if (data.type === 'PIN_UPDATE') {
+        pinnedMessages = data.pinnedMessages;
+        localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
+        renderPinnedBanner();
       } else if (data.type === 'PRESENCE') {
         activeUsers.set(data.name.toLowerCase(), { name: data.name, pfp: data.pfp });
         updateActiveCount();
+      } else if (data.type === 'SOUND') {
+        playSynthSound(data.sound);
       } else if (data.type === 'JUMPSCARE') {
         if (data.target && data.target.toLowerCase() === currentUser.toLowerCase()) {
           triggerJumpscare();
         }
-      } else if (data.type === 'SOUND') {
-        alert(`Admin Sound: ${data.sound}`);
       }
-    };
+    }
 
+    // WEB AUDIO SYNTH SOUNDS
+    function playSynthSound(type) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+
+        if (type === 'scream') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(3200, now + 0.8);
+          gain.gain.setValueAtTime(0.6, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.8);
+        } else if (type === 'siren') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(600, now);
+          osc.frequency.linearRampToValueAtTime(950, now + 0.3);
+          osc.frequency.linearRampToValueAtTime(600, now + 0.6);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.6);
+        } else if (type === 'yell') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(700, now + 0.5);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.5);
+        } else if (type === 'laugh') {
+          for (let i = 0; i < 5; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(350 + (i % 2) * 200, now + i * 0.12);
+            gain.gain.setValueAtTime(0.4, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.1);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.1);
+          }
+        }
+      } catch(e) { console.error("Web Audio error", e); }
+    }
+
+    function triggerSoundCommand(soundName) {
+      if (!isAdmin) return;
+      playSynthSound(soundName);
+      broadcastData({ type: 'SOUND', sound: soundName });
+    }
+
+    // UI Navigation & Dropdown
     $('#menu-toggle').onclick = () => {
       const drop = $('#main-dropdown');
       drop.style.display = drop.style.display === 'flex' ? 'none' : 'flex';
@@ -368,8 +447,7 @@
 
     $('#menu-edit-profile').onclick = () => {
       $('#main-dropdown').style.display = 'none';
-      const promptText = "Enter direct image URL for your PFP:\n\nTip: Right-click an online image and click 'Copy image address/link'.";
-      const link = prompt(promptText, userPfp);
+      const link = prompt("Enter image URL for PFP:", userPfp);
       if (link !== null && link.trim() !== "") {
         userPfp = link.trim();
         localStorage.setItem('gb_pfp', userPfp);
@@ -438,9 +516,14 @@
     }
 
     $('#unpin-btn').onclick = () => {
+      if (!isAdmin) {
+        appendBubble({ text: "❌ Only admins can unpin messages!", isErr: true }, false);
+        return;
+      }
       pinnedMessages[activeTab] = "";
       localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
       renderPinnedBanner();
+      broadcastData({ type: 'PIN_UPDATE', pinnedMessages });
     };
 
     $('#emoji-toggle').onclick = () => {
@@ -462,40 +545,46 @@
       $('#char-counter').textContent = `${msgInput.value.length}/500`;
     }
 
-    // Message Composer & Slash Command Handler
+    // Composer & Admin Commands
     $('#chat-form').onsubmit = (e) => {
       e.preventDefault();
       const rawText = msgInput.value.trim();
       if (!rawText) return;
 
-      // Handle Commands: /announce and /pin
+      // Command handling with admin checks
       if (rawText.startsWith('/announce ')) {
-        const annText = rawText.replace('/announce ', '').trim();
-        if (annText) {
-          const annMsg = {
-            user: currentUser,
-            pfp: userPfp,
-            text: `📢 ANNOUNCEMENT: ${annText}`,
-            time: new Date(),
-            isAnnouncement: true
-          };
-          saveAndBroadcast(annMsg);
+        if (!isAdmin) {
+          appendBubble({ text: "❌ Permission Denied: /announce is admin-only!", isErr: true }, false);
+        } else {
+          const annText = rawText.replace('/announce ', '').trim();
+          if (annText) {
+            const annMsg = { user: currentUser, pfp: userPfp, text: `📢 ANNOUNCEMENT: ${annText}`, time: new Date(), isAnnouncement: true };
+            saveAndBroadcast(annMsg);
+          }
         }
       } else if (rawText.startsWith('/pin ')) {
-        const pinText = rawText.replace('/pin ', '').trim();
-        if (pinText) {
-          pinnedMessages[activeTab] = pinText;
+        if (!isAdmin) {
+          appendBubble({ text: "❌ Permission Denied: /pin is admin-only!", isErr: true }, false);
+        } else {
+          const pinText = rawText.replace('/pin ', '').trim();
+          if (pinText) {
+            pinnedMessages[activeTab] = pinText;
+            localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
+            renderPinnedBanner();
+            broadcastData({ type: 'PIN_UPDATE', pinnedMessages });
+          }
+        }
+      } else if (rawText === '/unpin') {
+        if (!isAdmin) {
+          appendBubble({ text: "❌ Permission Denied: /unpin is admin-only!", isErr: true }, false);
+        } else {
+          pinnedMessages[activeTab] = "";
           localStorage.setItem('gb_pinned_messages', JSON.stringify(pinnedMessages));
           renderPinnedBanner();
-          chatNetwork.postMessage({ type: 'SYNC_RELOAD' });
+          broadcastData({ type: 'PIN_UPDATE', pinnedMessages });
         }
       } else {
-        const newMsg = {
-          user: currentUser,
-          pfp: userPfp,
-          text: rawText,
-          time: new Date()
-        };
+        const newMsg = { user: currentUser, pfp: userPfp, text: rawText, time: new Date() };
         saveAndBroadcast(newMsg);
       }
 
@@ -509,12 +598,20 @@
       localStorage.setItem('gb_chat_history', JSON.stringify(chatHistory));
 
       appendBubble(msg, true);
-      chatNetwork.postMessage({ type: 'SYNC_RELOAD' });
+      broadcastData({ type: 'CHAT_MESSAGE', channel: activeTab, msg });
     }
 
     function appendBubble(msg, isMe) {
       const bubble = document.createElement('div');
       
+      if (msg.isErr) {
+        bubble.className = 'bubble system-err';
+        bubble.textContent = msg.text;
+        messagesEl.appendChild(bubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return;
+      }
+
       if (msg.isAnnouncement) {
         bubble.className = 'bubble announcement';
         bubble.textContent = msg.text;
@@ -573,7 +670,7 @@
     $('#profile-close-btn').onclick = () => $('#profile-modal').classList.add('hidden');
 
     $('#admin-jumpscare-btn').onclick = () => {
-      chatNetwork.postMessage({ type: 'JUMPSCARE', target: selectedProfileUser });
+      broadcastData({ type: 'JUMPSCARE', target: selectedProfileUser });
       triggerJumpscare();
       $('#profile-modal').classList.add('hidden');
     };
@@ -581,13 +678,8 @@
     function triggerJumpscare() {
       const overlay = $('#jumpscare-overlay');
       overlay.classList.remove('hidden');
+      playSynthSound('scream');
       setTimeout(() => overlay.classList.add('hidden'), 3500);
-    }
-
-    function playAdminSound(type) {
-      if (!isAdmin) return;
-      chatNetwork.postMessage({ type: 'SOUND', sound: type });
-      alert(`Admin Sound Broadcasted: ${type}`);
     }
 
     $('#online-btn').onclick = () => {
@@ -601,15 +693,6 @@
       });
       $('#users-modal').classList.remove('hidden');
     };
-
-    // Auto Refresh Check (Fallback for non-storage event frame contexts)
-    setInterval(() => {
-      const freshHistory = localStorage.getItem('gb_chat_history');
-      if (freshHistory && freshHistory !== JSON.stringify(chatHistory)) {
-        chatHistory = JSON.parse(freshHistory);
-        renderChannelMessages();
-      }
-    }, 1000);
 
     renderChannelMessages();
     renderPinnedBanner();
