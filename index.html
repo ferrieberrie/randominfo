@@ -80,27 +80,27 @@
 <body>
 
   <div class="card">
-    <h1>Global Chat</h1>
-    <p>Drag the button below to your bookmarks bar to launch the embedded chat widget on any webpage.</p>
+    <h1>Global Chat Widget</h1>
+    <p>Drag the button below to your bookmarks bar to use the widget on any website.</p>
     
     <a id="bookmarklet-link" class="bookmarklet-btn" href="#">💬 Global Chat</a>
 
     <div class="instructions">
-      <strong>Embedded Window Controls:</strong>
+      <strong>Controls:</strong>
       <ul>
-        <li>Click the <strong>&times;</strong> button on the header bar to hide the window.</li>
+        <li>Click <strong>&times;</strong> on the widget header to close.</li>
         <li>Press <strong>;</strong> (semicolon) on any website to toggle visibility.</li>
-        <li>Drag the header to move or drag corners to resize the chat box.</li>
+        <li>Drag top bar to move; drag corners/edges to resize smoothly.</li>
       </ul>
     </div>
 
-    <div class="code-box" id="code-preview">Generating 1-line script...</div>
+    <div class="code-box" id="code-preview">Generating script...</div>
   </div>
 
   <script>
     const appUrl = new URL('app.html', window.location.href).href;
 
-    const bookmarkletCode = `javascript:(function(){if(window.__gbcHost){window.__gbcHost.toggle();return;}const h=document.createElement('div');h.id='gbc-host-container';h.style.cssText='all:initial!important;position:fixed!important;bottom:20px!important;right:20px!important;width:400px!important;height:600px!important;z-index:2147483647!important;display:flex!important;flex-direction:column!important;border-radius:18px!important;box-shadow:0 16px 50px rgba(0,0,0,0.5)!important;background:#ffffff!important;overflow:hidden!important;resize:both!important;min-width:320px!important;min-height:400px!important;font-family:-apple-system,BlinkMacSystemFont,sans-serif!important;border:1px solid rgba(0,0,0,0.15)!important;';const b=document.createElement('div');b.style.cssText='height:36px;background:#f2f2f7;display:flex;align-items:center;justify-content:space-between;padding:0 12px;cursor:grab;user-select:none;border-bottom:1px solid rgba(0,0,0,0.1);';b.innerHTML='<span style="font-size:12px;font-weight:700;color:#8e8e93;">Global Chat</span><button id="gbc-close-btn" style="border:none;background:none;font-size:20px;color:#8e8e93;cursor:pointer;padding:0 4px;line-height:1;">&times;</button>';const f=document.createElement('iframe');f.src='${appUrl}';f.style.cssText='flex:1;width:100%;height:calc(100% - 36px);border:none;background:transparent;';h.appendChild(b);h.appendChild(f);document.body.appendChild(h);let d=false,x,y,l,t;b.addEventListener('mousedown',(e)=>{if(e.target.id==='gbc-close-btn')return;d=true;b.style.cursor='grabbing';x=e.clientX;y=e.clientY;const r=h.getBoundingClientRect();l=r.left;t=r.top;h.style.bottom='auto';h.style.right='auto';h.style.left=l+'px';h.style.top=t+'px';});document.addEventListener('mousemove',(e)=>{if(!d)return;h.style.left=(l+(e.clientX-x))+'px';h.style.top=(t+(e.clientY-y))+'px';});document.addEventListener('mouseup',()=>{d=false;b.style.cursor='grab';});const toggle=()=>{h.style.display=h.style.display==='none'?'flex':'none';};b.querySelector('#gbc-close-btn').onclick=toggle;document.addEventListener('keydown',(e)=>{if(e.key===';'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!document.activeElement.isContentEditable){toggle();}});window.__gbcHost={toggle:toggle};})();`;
+    const bookmarkletCode = `javascript:(function(){if(window.__gbcHost){window.__gbcHost.toggle();return;}const h=document.createElement('div');h.id='gbc-host-container';h.style.cssText='all:initial!important;position:fixed!important;bottom:20px!important;right:20px!important;width:400px!important;height:600px!important;z-index:2147483647!important;display:flex!important;flex-direction:column!important;border-radius:18px!important;box-shadow:0 16px 50px rgba(0,0,0,0.5)!important;background:#ffffff!important;overflow:hidden!important;resize:both!important;min-width:320px!important;min-height:400px!important;font-family:-apple-system,BlinkMacSystemFont,sans-serif!important;border:1px solid rgba(0,0,0,0.15)!important;';const b=document.createElement('div');b.style.cssText='height:36px;background:#f2f2f7;display:flex;align-items:center;justify-content:space-between;padding:0 12px;cursor:grab;user-select:none;border-bottom:1px solid rgba(0,0,0,0.1);flex-shrink:0;';b.innerHTML='<span style="font-size:12px;font-weight:700;color:#8e8e93;font-family:sans-serif;">Global Chat</span><button id="gbc-close-btn" style="border:none;background:none;font-size:20px;color:#8e8e93;cursor:pointer;padding:0 4px;line-height:1;">&times;</button>';const glass=document.createElement('div');glass.style.cssText='position:absolute;inset:36px 0 0 0;z-index:99;display:none;';const f=document.createElement('iframe');f.src='${appUrl}';f.style.cssText='flex:1;width:100%;height:calc(100% - 36px);border:none;background:transparent;';h.appendChild(b);h.appendChild(glass);h.appendChild(f);document.body.appendChild(h);let dragging=false,startX,startY,initialL,initialT;b.addEventListener('mousedown',(e)=>{if(e.target.id==='gbc-close-btn')return;dragging=true;glass.style.display='block';b.style.cursor='grabbing';startX=e.clientX;startY=e.clientY;const rect=h.getBoundingClientRect();initialL=rect.left;initialT=rect.top;h.style.bottom='auto';h.style.right='auto';h.style.left=initialL+'px';h.style.top=initialT+'px';e.preventDefault();});document.addEventListener('mousemove',(e)=>{if(!dragging)return;h.style.left=(initialL+(e.clientX-startX))+'px';h.style.top=(initialT+(e.clientY-startY))+'px';});document.addEventListener('mouseup',()=>{if(dragging){dragging=false;glass.style.display='none';b.style.cursor='grab';}});const toggle=()=>{h.style.display=h.style.display==='none'?'flex':'none';};b.querySelector('#gbc-close-btn').onclick=toggle;document.addEventListener('keydown',(e)=>{if(e.key===';'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!document.activeElement.isContentEditable){toggle();}});window.__gbcHost={toggle:toggle};})();`;
 
     document.getElementById('bookmarklet-link').href = bookmarkletCode;
     document.getElementById('code-preview').textContent = bookmarkletCode;
