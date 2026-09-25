@@ -157,8 +157,6 @@
   }
   function publishSignal(data) {
     if (closed) return;
-    // Live-only signals are not cached, so they cannot fill the chat history or
-    // compete with real messages during a week-long replay.
     publish(channel,data,5000,false).catch(()=>{});
   }
   function renderPresence() {
@@ -557,7 +555,6 @@
     channel = chan; write('gb_channel', chan); notice(''); $('.moderation').textContent=''; lastRestriction=''; online.clear(); typingUsers.clear(); renderPresence(); renderTyping(); updateModeration(); showPin();
     root.querySelectorAll('[data-channel]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.channel === chan)));
     messages.replaceChildren(); render(); connection = 'Connecting…'; updateStatus();
-    // One SSE request replays available cached messages and then stays live: no history/live race.
     const since = Math.floor((Date.now() - WEEK) / 1000);
     try {
       source = new EventSource(server + '/global-bookmarklet-' + chan + '/sse?since=' + since);
@@ -582,7 +579,15 @@
     if (e.key === 'Escape' && !$('.menu').hidden) { setMenu(false); return; }
     if (e.key === 'Escape' && disguise) { setDisguise(false); return; }
     const typing = e.composedPath().some(el => el && (['INPUT','TEXTAREA','SELECT'].includes(el.tagName) || el.isContentEditable));
-    if ((e.key === ';' || e.code === 'Semicolon') && !e.ctrlKey && !e.altKey && !e.metaKey && window.self!==window.top) { e.preventDefault(); window.parent.postMessage('toggle','*'); }
+    if (typing) return;
+    if ((e.key === ';' || e.code === 'Semicolon') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (window.self !== window.top) {
+        window.parent.postMessage('toggle', '*');
+      } else {
+        setHidden(!hidden);
+      }
+    }
   }
   function setHidden(value) {
     hidden = value;
@@ -594,7 +599,7 @@
     if (!$('.menu').hidden && !event.composedPath().includes($('.menu'))) setMenu(false);
     if (!$('.online-list').hidden && !event.composedPath().includes($('.online-list'))) { $('.online-list').hidden=true; $('.brand-subtitle').setAttribute('aria-expanded','false'); }
   });
-  $('.disguise').onclick = () => { setMenu(false); setDisguise(true); };$('.back').onclick = () => setDisguise(false); $('.close').onclick = () => { setMenu(false); setHidden(true); };$('.admin-unlock').onclick = () => { setMenu(false); $('.admin-file').click(); };$('.admin-file').onchange = event => unlockAdmin(event.target.files?.[0]);
+  $('.disguise').onclick = () => { setMenu(false); setDisguise(true); };$('.back').onclick = () => setDisguise(false); $('.close').onclick = () => { setMenu(false); if (window.self !== window.top) window.parent.postMessage('toggle', '*'); else setHidden(true); };$('.admin-unlock').onclick = () => { setMenu(false); $('.admin-file').click(); };$('.admin-file').onchange = event => unlockAdmin(event.target.files?.[0]);
   $('.theme-toggle').onclick = () => { applyTheme(theme === 'light' ? 'dark' : 'light'); };$('.profile-photo').onclick = () => {
     const next = prompt('Paste an HTTPS image URL for your profile photo. Leave blank to remove it.', avatar);
     if (next === null) return;
